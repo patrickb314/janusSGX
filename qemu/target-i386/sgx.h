@@ -102,26 +102,31 @@ typedef enum {
     ENCLS_ELDB         = 0x07,
     ENCLS_ELDU         = 0x08,
     ENCLS_EBLOCK       = 0x09,
-    ENCLS_EAUG         = 0x10,
+    ENCLS_EPA	       = 0x0A,
+    ENCLS_EWB	       = 0x0B,
+    ENCLS_ETRACK       = 0x0C,
+    ENCLS_EAUG         = 0x0D,
+    ENCLS_EMODPR       = 0x0E,
+    ENCLS_EMODT        = 0x0F,
 
     // custom hypercalls
-    ENCLS_OSGX_INIT    = 0x0A,          // XXX?
-    ENCLS_OSGX_PUBKEY  = 0x0B,          // XXX?
-    ENCLS_OSGX_EPCM_CLR= 0x0C,          // XXX?
-    ENCLS_OSGX_CPUSVN  = 0x0D,          // XXX?
-    ENCLS_OSGX_STAT    = 0x0E
+    ENCLS_OSGX_INIT    = 0x10,          // XXX?
+    ENCLS_OSGX_PUBKEY  = 0x11,          // XXX?
+    ENCLS_OSGX_EPCM_CLR= 0x12,          // XXX?
+    ENCLS_OSGX_CPUSVN  = 0x13,          // XXX?
+    ENCLS_OSGX_STAT    = 0x14
 } encls_cmd_t;
 
 // from 5.1.2
 typedef enum {
-    ENCLU_EACCEPT      = 0x00,
-    ENCLU_EACCEPTCOPY  = 0x01,
+    ENCLU_EREPORT      = 0x00,
+    ENCLU_EGETKEY      = 0x01,
     ENCLU_EENTER       = 0x02,
-    ENCLU_EEXIT        = 0x03,
-    ENCLU_EGETKEY      = 0x04,
-    ENCLU_EMODE        = 0x05,
-    ENCLU_EREPORT      = 0x06,
-    ENCLU_ERESUME      = 0x07,
+    ENCLU_ERESUME      = 0x03,
+    ENCLU_EEXIT        = 0x04,
+    ENCLU_EACCEPT      = 0x05,
+    ENCLU_EMODPE       = 0x06,
+    ENCLU_EACCEPTCOPY  = 0x07,
 } enclu_cmd_t;
 
 // from 5.1.3
@@ -135,20 +140,21 @@ typedef enum {
 #define ERR_SGX_LOCKFAIL            (0x07)        //!< EBLOCK
 #define ERR_SGX_INVALID_SIGNATURE   (0x08)        //!< EINIT
 #define ERR_SGX_MAC_COMPARE_FAIL    (0x09)        //!< ELDB, ELDU
-#define ERR_SGX_PAGE_NOT_BLOCKED    (0x10)        //!< EWB
-#define ERR_SGX_NOT_TRACKED         (0x11)        //!< EWB
-#define ERR_SGX_VA_SLOT_OCCUPIED    (0x12)        //!< EWB
-#define ERR_SGX_CHILD_PRESENT       (0x13)        //!< EWB, EREMOVE
-#define ERR_SGX_ENCLAVE_ACT         (0x14)        //!< EREMOVE
-#define ERR_SGX_ENTRYEPOCH_LOCKED   (0x15)        //!< EBLOCK
-#define ERR_SGX_INVALID_EINIT_TOKEN (0x16)        //!< EINIT
-#define ERR_SGX_PREV_TRK_INCMPL     (0x17)        //!< ETRACK
-#define ERR_SGX_PG_IS_SECS          (0x18)        //!< EBLOCK
-#define ERR_SGX_PAGE_ATTRIBUTES_MISMATCH (0x19)   //!< EACCEPT, EACCEPTCOPY
-#define ERR_SGX_INVALID_CPUSVN      (0x32)        //!< EINIT, EGETKEY
-#define ERR_SGX_INVALID_ISVSVN      (0x64)        //!< EGETKEY
-#define ERR_SGX_UNMASKED_EVENT      (0x128)       //!< EINIT
-#define ERR_SGX_INVALID_KEYNAME     (0x256)       //!< EGETKEY
+#define ERR_SGX_PAGE_NOT_BLOCKED    (0x0A)        //!< EWB
+#define ERR_SGX_NOT_TRACKED         (0x0B)        //!< EWB
+#define ERR_SGX_VA_SLOT_OCCUPIED    (0x0C)        //!< EWB
+#define ERR_SGX_CHILD_PRESENT       (0x0D)        //!< EWB, EREMOVE
+#define ERR_SGX_ENCLAVE_ACT         (0x0E)        //!< EREMOVE
+#define ERR_SGX_ENTRYEPOCH_LOCKED   (0x0F)        //!< EBLOCK
+#define ERR_SGX_INVALID_EINIT_TOKEN (0x10)        //!< EINIT
+#define ERR_SGX_PREV_TRK_INCMPL     (0x11)        //!< ETRACK
+#define ERR_SGX_PG_IS_SECS          (0x12)        //!< EBLOCK
+#define ERR_SGX_PAGE_ATTRIBUTES_MISMATCH (0x13)   //!< EACCEPT, EACCEPTCOPY
+#define ERR_SGX_PAGE_NOT_MODIFIABLE (0x14)        //!< XXX
+#define ERR_SGX_INVALID_CPUSVN      (0x20)        //!< EINIT, EGETKEY
+#define ERR_SGX_INVALID_ISVSVN      (0x40)        //!< EGETKEY
+#define ERR_SGX_UNMASKED_EVENT      (0x60)        //!< EINIT
+#define ERR_SGX_INVALID_KEYNAME     (0x80)        //!< EGETKEY
 
 //====--------------------------------------------------------------
 /// SGX ENCLS related Structures

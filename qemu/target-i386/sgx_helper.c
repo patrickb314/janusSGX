@@ -2115,7 +2115,7 @@ _EXIT:
 }
 
 static
-void sgx_emode(CPUX86State *env)
+void sgx_emodpe(CPUX86State *env)
 {
 }
 
@@ -2622,7 +2622,7 @@ const char *enclu_cmd_to_str(long cmd) {
     case ENCLU_EENTER:      return "EENTER";
     case ENCLU_EEXIT:       return "EEXIT";
     case ENCLU_EGETKEY:     return "EGETKEY";
-    case ENCLU_EMODE:       return "EMODE";
+    case ENCLU_EMODPE:      return "EMODPE";
     case ENCLU_EREPORT:     return "EREPORT";
     case ENCLU_ERESUME:     return "ERESUME";
     }
@@ -2664,8 +2664,8 @@ void helper_sgx_enclu(CPUX86State *env, uint64_t next_eip)
             env->cregs.CR_NEXT_EIP = next_eip;
             sgx_egetkey(env);
             break;
-        case ENCLU_EMODE:
-            sgx_emode(env);
+        case ENCLU_EMODPE:
+            sgx_emodpe(env);
         case ENCLU_EREPORT:
             env->cregs.CR_NEXT_EIP = next_eip;
             sgx_ereport(env);
