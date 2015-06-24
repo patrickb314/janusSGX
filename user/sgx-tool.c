@@ -120,7 +120,7 @@ void cmd_measure(char *binary, char *size, char *offset, char *code_start, char 
     printf("MEASUREMENT: %s\n", hash_str);
 }
 
-void cmd_gen_sigstruct(char *conf)
+void cmd_gen_sigstruct(char *conf, int intel)
 {
     sigstruct_t s;
 
@@ -137,6 +137,12 @@ void cmd_gen_sigstruct(char *conf)
     int einittokenkey = 0;
 
     unsigned char *measurement = load_measurement(conf);
+
+    if (intel) {
+	printf("# Must be an INTEL enclave\n");
+        provisionkey = 0;
+   	einittokenkey = 1;
+    }
 
     time_t t = time(NULL);
     struct tm tm = *localtime(&t);
@@ -371,6 +377,12 @@ void cmd_gen_einittoken(char *conf)
     char *mrsigner = fmt_bytes(signer, 32);
     char *mrenclave = fmt_bytes(s->enclaveHash, 32);
 
+    if (s->attributes.einittokenkey == 1) {
+	// Intel-signed enclaves, which are checked against the intel
+	// public key, not a device-specific derived key
+	printf("# Setting valid = 0 to bootstrap an INTEL enclave\n");
+	valid_default[3] = 0x00;
+    }
     // set default value
     memset(t.cpuSvnLE, 0, 16);
     memset(t.keyid, 0, 32);
@@ -527,6 +539,7 @@ int main(int argc, char *argv[])
         {"einittokengen", required_argument, 0, 'E'},
         {"sigstruct"    , required_argument, 0, 'g'},
         {"einittoken"   , required_argument, 0, 't'},
+	{"intel"	, no_argument, 0, 'I'},
         {0, 0, 0, 0}
     };
 
@@ -583,13 +596,16 @@ int main(int argc, char *argv[])
             cmd_mac(conf, keyfile);
             break;
         }
-        case 'S':
-            cmd_gen_sigstruct(optarg);
-            break;;
+        case 'S': {
+	    char *conf = optarg;
+            c = getopt_long(argc, argv, "I", options, &optind);
+            cmd_gen_sigstruct(conf, c == 'I');
+            break;
+	}
         case 'E':
             cmd_gen_einittoken(optarg);
             break;
-    }
+        }
     }
 
     return 0;

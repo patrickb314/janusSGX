@@ -14,5 +14,4 @@ void enclave_main()
     if (c == 1)
         while (1);
 
-    sgx_exit(NULL);
 }

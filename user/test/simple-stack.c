@@ -15,6 +15,4 @@ void enclave_main()
     c = 7;
 
     (void) c;
-
-    sgx_exit(NULL);
 }

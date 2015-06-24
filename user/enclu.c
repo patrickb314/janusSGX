@@ -5,5 +5,4 @@
 void enclave_main()
 {
     // exitptr = NULL means right after eenter()
-    sgx_exit(NULL);
 }

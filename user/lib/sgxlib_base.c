@@ -1,18 +1,7 @@
 #include <sgx-lib.h>
-unsigned long cur_heap_ptr = 0x0;
-
-unsigned long heap_end = 0x0;
+#include <asm/ptrace.h>
 
 // one 4k page : enclave page & offset
-
-void sgx_print_hex(unsigned long addr) {
-
-    sgx_stub_info *stub = (sgx_stub_info *)STUB_ADDR;
-
-    stub->fcode = PRINT_HEX;
-    stub->addr = addr;
-    sgx_exit(stub->trampoline);
-}
 
 void _enclu(enclu_cmd_t leaf, uint64_t rbx, uint64_t rcx, uint64_t rdx,
            out_regs_t *out_regs)
@@ -43,118 +32,6 @@ void _enclu(enclu_cmd_t leaf, uint64_t rbx, uint64_t rcx, uint64_t rdx,
              "=c"(out_regs->orcx),
              "=d"(out_regs->ordx));
     }
-}
-
-void *sgx_malloc(int size) {
-
-    sgx_puts("heap_ptr address");
-//    sgx_print_hex((unsigned long)cur_heap_ptr);
-    sgx_stub_info *stub = (sgx_stub_info *)STUB_ADDR;
-
-    if(cur_heap_ptr == 0){
-        stub->fcode = FUNC_MALLOC;
-        stub->mcode = MALLOC_INIT;
-        // Enclave exit & jump into user-space trampoline
-        sgx_exit(stub->trampoline);
-
-        cur_heap_ptr = (unsigned long)stub->heap_beg;
-        heap_end = (unsigned long)stub->heap_end;
-    }
-
-    void *last_heap_ptr = (void *)cur_heap_ptr;
-    unsigned long extra_secinfo_size = sizeof(secinfo_t) + (SECINFO_ALIGN_SIZE - 1);
-
-    // Check whether the malloc request overfills EPC heap area
-    if(((unsigned long)cur_heap_ptr + extra_secinfo_size + ((size+1)/8)*8) > heap_end){
-        //XXX: calling sgx_puts in here makes prob.
-        //sgx_puts("DEBUG pending page");
-
-        secinfo_t *secinfo = sgx_memalign(SECINFO_ALIGN_SIZE, sizeof(secinfo_t));
-
-        secinfo->flags.r = 1;
-        secinfo->flags.w = 1;
-        secinfo->flags.x = 0;
-        secinfo->flags.pending = 1;
-        secinfo->flags.modified = 0;
-        secinfo->flags.reserved1 = 0;
-        secinfo->flags.page_type = PT_REG;
-        int i = 0;
-        for(i = 0 ; i< 6; i++){
-            secinfo->flags.reserved2[i] = 0;
-        }
-
-        stub->fcode = FUNC_MALLOC;
-        stub->mcode = REQUEST_EAUG;
-        // Enclave exit & jump into user-space trampoline
-        sgx_exit(stub->trampoline);
-        unsigned long pending_page = stub->pending_page;
-//        sgx_print_hex(pending_page);
-
-        // EACCEPT should be called with [RBX:the address of secinfo, RCX:the adress of pending page]
-        out_regs_t out;
-        _enclu(ENCLU_EACCEPT, (uint64_t)secinfo, (uint64_t)pending_page, 0, &out);  // Check whether OS-provided pending page is legitimate for EPC heap area
-        if(out.oeax == 0){   // No error occurred in EACCEPT
-            heap_end += PAGE_SIZE;
-        }
-        else{
-            return NULL;
-        }
-
-    }
-    cur_heap_ptr = (unsigned long)last_heap_ptr + ((size+1)/8)*8;
-
-    //sgx_print_hex(heap_end);
-    //sgx_print_hex((unsigned long)last_heap_ptr);
-    return last_heap_ptr;
-}
-
-void *sgx_realloc(void *ptr, size_t size){
-    void *new;
-    if(ptr == NULL){
-        return sgx_malloc(size);
-    }
-    else{
-        if(size == 0){
-             sgx_free(ptr);
-             return NULL;
-        } 
-        new = sgx_malloc(size);
-        if(new != NULL){      
-            //if new size > old size, old_size+alpha is written to new. Thus, some of garbage values would be copied
-            //if old size > new size, new_size is written to new. Thus, some of old values would be lossed
-            //sgx_print_hex(new);
-            sgx_memcpy(new, ptr, size);
-            return new;
-        }
-        else{
-            return NULL; 
-        }
-    }
-}
-
-void *sgx_memalign(size_t align, size_t size){
-
-    void *mem = sgx_malloc(size + (align - 1));
-    void *ptr = (void *)(((unsigned long)mem + ((unsigned long)align - 1)) & ~ ((unsigned long)align - 1));
-
-    return ptr;
-}
-
-void sgx_free(void *ptr) {
-
-}
-
-void sgx_puts(char buf[]) {
-
-    size_t size = sgx_strlen(buf);
-    sgx_stub_info *stub = (sgx_stub_info *)STUB_ADDR;
-
-    // puts
-    stub->fcode = FUNC_PUTS;
-    sgx_memcpy(stub->out_data1, buf, size);
-
-    // Enclave exit & jump into user-space trampoline
-    sgx_exit(stub->trampoline);
 }
 
 size_t sgx_strlen(const char *string) {
@@ -290,51 +167,4 @@ void *sgx_memcpy (void *dest, const void *src, size_t size)
                   "c"((uint32_t)size));
 
     return dest;
-}
-
-int sgx_send(const char *ip, const char *port, const void *msg, size_t length) {
-    sgx_stub_info *stub = (sgx_stub_info *)STUB_ADDR;
-
-    stub->fcode = FUNC_SEND;
-    sgx_memcpy(stub->out_data1, ip, sgx_strlen(ip));
-    sgx_memcpy(stub->out_data2, port, sgx_strlen(port));
-    sgx_memcpy(stub->out_data3, msg, length);
-    stub->out_arg1 = length;
-
-    // Enclave exit & jump into user-space trampoline
-    sgx_exit(stub->trampoline);
-
-    // return #of bytes sent.
-    return stub->in_arg1;
-}
-
-int sgx_recv(const char *port, const char *buf) {
-
-    sgx_stub_info *stub = (sgx_stub_info *)STUB_ADDR;
-
-    //recv
-    stub->fcode = FUNC_RECV;
-    sgx_memcpy(stub->out_data1, port, sizeof(port));
-    stub->out_arg1 = SGXLIB_MAX_ARG;
-
-    // Enclave exit & jump into user-space trampoline
-    sgx_exit(stub->trampoline);
-
-    // recv failure check 
-    if(stub->in_arg1 < 0 ){
-        return;
-    }
-    else {
-        sgx_memcpy(buf, stub->in_data1, stub->in_arg1);
-    }
-
-    // return #of bytes recv
-    return stub->in_arg1;
-}
-
-void sgx_close_sock(void) {
-    sgx_stub_info *stub = (sgx_stub_info *)STUB_ADDR;
-    stub->fcode = FUNC_CLOSE_SOCK; 
-
-    sgx_exit(stub->trampoline);
 }

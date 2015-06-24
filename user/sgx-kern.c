@@ -356,7 +356,7 @@ unsigned long get_epc_heap_end() {
 }
 
 // init custom data structures for qemu-sgx
-bool sys_sgx_init(void)
+bool sys_sgx_init(void *devicekey)
 {
     // enclave map
     for (int i = 0; i < MAX_ENCLAVES; i ++) {
@@ -364,14 +364,25 @@ bool sys_sgx_init(void)
         kenclaves[i].keid = -1;
     }
 
+    sgx_dbg(info, "Initialized %d enxlave entries", MAX_ENCLAVES);
     init_epc(NUM_EPC);
+
+    sgx_dbg(info, "Initialized %d EPC entries", NUM_EPC);
 
     // QEMU Setup initialization for SGX
     encls_qemu_init((uint64_t)get_epc_region_beg(),
                     (uint64_t)get_epc_region_end());
+    sgx_dbg(info, "Initialized QEMU EPC region");
 
     // Set default cpu svn
     set_cpusvn(CPU_SVN);
+    sgx_dbg(info, "Set CPU SVC.");
+
+    // Set the intel public key
+    if (devicekey) {
+    	set_intel_pubkey((uint64_t)devicekey);
+        sgx_dbg(info, "Set Intel pubkey");
+    }
 
     // Initialize an empty page for later use.
     empty_page = memalign(PAGE_SIZE, PAGE_SIZE);
@@ -405,11 +416,11 @@ int syscall_create_enclave(void *entry, void *code, unsigned int code_pages,
 {
     int ret = -1;
     int eid = alloc_keid();
-    kenclaves[eid].kin_n++;
 
     // full
     if (eid == -1)
         return -1;
+    kenclaves[eid].kin_n++;
     cur_eid = eid;
 
     //      enclave (@eid) w/ npages

@@ -7,12 +7,11 @@
 #include <sys/socket.h>
 #include <netdb.h>
 #include <unistd.h>
-#include <sgx-malloc.h>
+
+#include <asm/ptrace.h>
 
 static keid_t stat;
 static uint64_t _tcs_app;
-static int send_fd = 0;
-static int recv_fd = 0, client_fd = 0;
 
 // (ref. r2:5.2)
 // out_regs store the output value returned from qemu */
@@ -218,36 +217,8 @@ void update_einittoken(einittoken_t *token)
 
 tcs_t *run_enclave(void *entry, void *codes, unsigned int n_of_pages, char *conf)
 {
-    assert(sizeof(tcs_t) == PAGE_SIZE);
-
-    // allocate TCS
-    tcs_t *tcs = (tcs_t *)memalign(PAGE_SIZE, sizeof(tcs_t));
-    if (!tcs)
-        err(1, "failed to allocate tcs");
-
-    memset(tcs, 0, sizeof(tcs_t));
-
-    // XXX. tcs structure is freed at the end! maintain as part of
-    // keid structure
-    _tcs_app = (uint64_t)tcs;
-
-    // Calculate the offset for setting oentry of tcs
-    size_t offset = (uintptr_t)entry - (uintptr_t)codes;
-    set_tcs_fields(tcs, offset);
-
-    // XXX. exception handler is app specific? then pass it through
-    // argument.
-    void (*aep)() = exception_handler;
-
-    // load sigstruct from file
-    sigstruct_t *sigstruct = load_sigstruct(conf);
-
-    // load einittoken from file
-    einittoken_t *token = load_einittoken(conf);
-
-    sgx_dbg(trace, "entry: %p", entry);
-
-    int keid = syscall_create_enclave(entry, codes, n_of_pages, tcs, sigstruct, token, false);
+    int keid = create_enclave(entry, codes, n_of_pages, conf);
+    
     if (keid < 0)
         err(1, "failed to create enclave");
 
@@ -255,12 +226,11 @@ tcs_t *run_enclave(void *entry, void *codes, unsigned int n_of_pages, char *conf
     if (syscall_stat_enclave(keid, &stat) < 0)
         err(1, "failed to stat enclave");
 
-    // please check STUB_ADDR is mmaped in the main before enable below
-    sgx_stub_info *stub = (sgx_stub_info *)STUB_ADDR;
-    stub->tcs = stat.tcs;
+    // XXX. exception handler is app specific? then pass it through
+    // argument.
+    void (*aep)() = exception_handler;
 
     EENTER(stat.tcs, aep);
-    free(tcs);
 
     return stat.tcs;
 }
@@ -302,8 +272,8 @@ void print_eid_stat(keid_t stat) {
      printf("Total EPC Heap region\t: 0x%lx\n",total_epc_heap);
 }
 
-
-tcs_t *test_run_enclave(void *entry, void *codes, unsigned int n_of_code_pages)
+int create_enclave(void *entry, void *codes, unsigned int n_of_code_pages, 
+		   char *conf)
 {
     assert(sizeof(tcs_t) == PAGE_SIZE);
 
@@ -322,64 +292,63 @@ tcs_t *test_run_enclave(void *entry, void *codes, unsigned int n_of_code_pages)
     size_t offset = (uintptr_t)entry - (uintptr_t)codes;
     set_tcs_fields(tcs, offset);
 
-    // XXX. exception handler is app specific? then pass it through
-    // argument.
-    void (*aep)() = exception_handler;
+    sigstruct_t *sigstruct;
+    einittoken_t *token;
+    if (!conf) {
+	// generate RSA key pair
+	rsa_key_t pubkey, seckey;
 
-    // generate RSA key pair
-    rsa_key_t pubkey;
-    rsa_key_t seckey;
+	// load rsa key from conf
+	rsa_context *ctx = load_rsa_keys("conf/test.key", pubkey, seckey, KEY_LENGTH_BITS);
+	// set sigstruct which will be used for signing
+	sigstruct = alloc_sigstruct();
+	if (!sigstruct)
+		err(1, "failed to allocate sigstruct");
 
-    // load rsa key from conf
-    rsa_context *ctx = load_rsa_keys("conf/test.key", pubkey, seckey, KEY_LENGTH_BITS);
-    {
-        char *pubkey_str = fmt_bytes(pubkey, sizeof(pubkey));
-        char *seckey_str = fmt_bytes(seckey, sizeof(pubkey));
+	// for testing, all zero = bypass
+	memset(sigstruct->enclaveHash, 0, sizeof(sigstruct->enclaveHash));
 
-        sgx_dbg(info, "pubkey: %.40s..", pubkey_str);
-        sgx_dbg(info, "seckey: %.40s..", seckey_str);
+	// signing with private key
+	rsa_sig_t sig;
+	rsa_sign(ctx, sig, (unsigned char *)sigstruct, sizeof(sigstruct_t));
+        free(ctx);
 
-        free(pubkey_str);
-        free(seckey_str);
+	// set sigstruct after signing
+	update_sigstruct(sigstruct, pubkey, sig);
+
+	// set einittoken which will be used for MAC
+	token = alloc_einittoken(pubkey, sigstruct);
+	if (!token)
+       		err(1, "failed to allocate einittoken");
+    } else {
+	// load sigstruct from file
+	sigstruct = load_sigstruct(conf);
+	// load einittoken from file
+	token = load_einittoken(conf);
     }
-
-    // set sigstruct which will be used for signing
-    sigstruct_t *sigstruct = alloc_sigstruct();
-    if (!sigstruct)
-        err(1, "failed to allocate sigstruct");
-
-    // for testing, all zero = bypass
-    memset(sigstruct->enclaveHash, 0, sizeof(sigstruct->enclaveHash));
-
-    // signing with private key
-    rsa_sig_t sig;
-    rsa_sign(ctx, sig, (unsigned char *)sigstruct, sizeof(sigstruct_t));
-
-    // set sigstruct after signing
-    update_sigstruct(sigstruct, pubkey, sig);
-
-    // set einittoken which will be used for MAC
-    einittoken_t *token = alloc_einittoken(pubkey, sigstruct);
-    if (!token)
-        err(1, "failed to allocate einittoken");
 
     sgx_dbg(trace, "entry: %p", entry);
 
-    int keid = syscall_create_enclave(entry, codes, n_of_code_pages, tcs, sigstruct, token, false);
+    int keid = syscall_create_enclave(entry, codes, n_of_code_pages, tcs, sigstruct, token, !token->valid);
     if (keid < 0)
         err(1, "failed to create enclave");
+
+    free(tcs);
+    return keid;
+}
+
+tcs_t *run_enclave_test(void *entry, void *codes, unsigned int n_of_code_pages)
+{
+    int keid = create_enclave(entry, codes, n_of_code_pages, NULL);
 
     if (syscall_stat_enclave(keid, &stat) < 0)
         err(1, "failed to stat enclave");
 
-// Enable here for stub !
-// please check STUB_ADDR is mmaped in the main before enable below
-    sgx_stub_info *stub= (sgx_stub_info *)STUB_ADDR;
-    stub->tcs = stat.tcs;
+    // XXX. exception handler is app specific? then pass it through
+    // argument.
+    void (*aep)() = exception_handler;
 
     EENTER(stat.tcs, aep);
-    free(ctx);
-    free(tcs);
 
     if (syscall_stat_enclave(keid, &stat) < 0)
         err(1, "failed to stat enclave");
@@ -389,342 +358,9 @@ tcs_t *test_run_enclave(void *entry, void *codes, unsigned int n_of_code_pages)
     return stat.tcs;
 }
 
-
-static
-const char *fcode_to_str(fcode_t fcode)
-{
-    switch (fcode) {
-	case FUNC_PUTS        : return "PUTS";
-        case FUNC_CLOSE_SOCK  : return "CLOSE_SOCK";
-        case FUNC_SEND        : return "SEND";
-        case FUNC_RECV        : return "RECV";
-
-	case FUNC_MALLOC      : return "MALLOC";
-        case FUNC_FREE        : return "FREE";
-        case FUNC_SYSCALL     : return "SYSCALL";
-        case PRINT_HEX        : return "PRINT_HEX";
-        default:
-        {
-            sgx_dbg(err, "unknown function code (%d)", fcode);
-                assert(false);
-        }
-    }
-}
-
-static
-void dbg_dump_stub_out(sgx_stub_info *stub)
-{
-
-    fprintf(stderr, "\n");
-    fprintf(stderr, "++++++ FROM ENCLAVE ++++++\n");
-    fprintf(stderr, "++++++ ABI Version : %d ++++++\n",
-            stub->abi);
-    fprintf(stderr, "++++++ Function code: %s\n",
-            fcode_to_str(stub->fcode));
-    fprintf(stderr, "++++++ Out_arg1: %d  Out_arg2: %d\n",
-            stub->out_arg1, stub->out_arg2);
-    fprintf(stderr, "++++++ Out Data1 ++++++\n");
-    hexdump(stderr, (void *)stub->out_data1, 32);
-    fprintf(stderr, "\n");
-    fprintf(stderr, "++++++ Out Data2 ++++++\n");
-    hexdump(stderr, (void *)stub->out_data2, 32);
-    fprintf(stderr, "\n");
-    fprintf(stderr, "++++++ Out Data3 ++++++\n");
-    hexdump(stderr, (void *)stub->out_data3, 32);
-
-    fprintf(stderr, "++++++ Tcs:%p\n",
-            (void *) stub->tcs);
-
-    fprintf(stderr, "\n");
-
-}
-
-static
-void dbg_dump_stub_in(sgx_stub_info *stub)
-{
-    fprintf(stderr, "\n");
-    fprintf(stderr, "++++++ TO ENCLAVE ++++++\n");
-    fprintf(stderr, "++++++ In_arg1: %d  In_arg2: %d\n",
-            stub->in_arg1, stub->in_arg2);
-    fprintf(stderr, "++++++ In Data1 ++++++\n");
-    hexdump(stderr, (void *)stub->in_data1, 32);
-    fprintf(stderr, "\n");
-    fprintf(stderr, "++++++ In Data2 ++++++\n");
-    hexdump(stderr, (void *)stub->in_data2, 32);
-    fprintf(stderr, "++++++ ret:%x\n",
-            stub->ret);
-    fprintf(stderr, "++++++ pending page:%lx\n",
-            stub->pending_page);
-    fprintf(stderr, "\n");
-
-}
-
-void sgx_puts_tramp(char *data)
-{
-    puts(data);
-}
-
-/*
-//TODO: could implement general syscall stub
-// but we don't need it now. igrnore it
-void sgx_syscall()
-{
-}
-*/
-void sgx_close_sock_tramp(void)
-{
-    close(recv_fd);
-    close(send_fd);
-    close(client_fd);
-    fprintf(stdout, "All sockets are closed :)\n");
-}
-
-int sgx_send_tramp(char *ip, char *port, void *msg, size_t len)
-{
-    struct addrinfo hints, *result, *iter;
-    int errcode;
-    int sentBytes;
-    static char *savedIp = NULL, *savedPort = NULL;
-
-    //for piggyback
-    if (send_fd == 0 || strcmp(savedIp,ip) || strcmp(savedPort, port)) {
-        savedIp = ip;
-        savedPort = port;
-        memset(&hints, 0, sizeof(struct addrinfo));
-        hints.ai_family = PF_UNSPEC;
-        hints.ai_socktype = SOCK_STREAM;
-
-        errcode = getaddrinfo(ip, port, &hints, &result);
-        if (errcode != 0) {
-            perror("getaddr info");
-            return -1;
-        }
-
-        for (iter = result; iter != NULL; iter = iter->ai_next) {
-            send_fd = socket(iter->ai_family, iter->ai_socktype,
-                            iter->ai_protocol);
-
-            if (send_fd == -1) {
-                perror("socket");
-                continue;
-            }
-
-            if (connect(send_fd, iter->ai_addr, iter->ai_addrlen) == -1) {
-                close(send_fd);
-                perror("connect");
-                continue;
-            }
-
-            break;
-        }
-
-        if (iter == NULL) {
-            fprintf(stderr, "failed to connect\n");
-            return -2;
-        }
-    }
-
-    if ((sentBytes = send(send_fd, msg, len, 0)) == -1)
-    {
-        fprintf(stderr, "failed to send\n");
-        return -3;
-    }
-
-    sgx_dbg(info, "send success: %d bytes are sent\n", sentBytes);
-    return sentBytes;
-}
-
-int sgx_recv_tramp(char *port, void *buf, size_t len)
-{
-    struct addrinfo hints;
-    struct addrinfo *result, *iter;
-
-    static char *savedPort = NULL;
-    struct sockaddr_in client_addr;
-    int client_addr_len;
-    int errcode;
-    int nread;
-
-    //for piggyback
-    if (recv_fd == 0 || strcmp(port, savedPort)) {
-        savedPort = port;
-        memset(&hints, 0, sizeof(struct addrinfo));
-        hints.ai_family = AF_UNSPEC;
-        hints.ai_socktype = SOCK_STREAM;
-        hints.ai_flags = AI_PASSIVE;
-
-        errcode = getaddrinfo(NULL, port, &hints, &result);
-        if (errcode != 0) {
-            perror("getaddrinfo");
-            return -1;
-        }
-
-        for (iter = result; iter != NULL; iter = iter->ai_next) {
-            recv_fd = socket(iter->ai_family, iter->ai_socktype,
-                            iter->ai_protocol);
-            if (recv_fd == -1)
-                continue;
-            if (bind(recv_fd, iter->ai_addr, iter->ai_addrlen) == 0)
-                break;    /*success*/
-
-            close(recv_fd);
-        }
-
-        if (iter == NULL) {
-            fprintf(stderr, "failed to bind\n");
-            return -2;
-        }
-
-        freeaddrinfo(result);
-
-        listen(recv_fd, 1);
-
-
-        sgx_msg(info, "Waiting for incoming connections...");
-        client_addr_len = sizeof(struct sockaddr_in);
-        client_fd = accept(recv_fd, (struct sockaddr *)&client_addr,
-                             (socklen_t *)&client_addr_len);
-
-        if (client_fd < 0) {
-            perror("accept");
-            close(recv_fd);
-            return -3;
-        }
-    }
-
-    nread = recv(client_fd, buf, len, 0);
-    if (nread == -1) {
-        perror("recv");
-        close(recv_fd);
-        close(client_fd);
-        return -4;
-    }
-    sgx_dbg(info, "recv success   : %d bytes received", nread);
-    sgx_dbg(info, "received string: %s", (char *)buf);
-    return nread;
-}
-
-static
-void clear_abi_in_fields(sgx_stub_info *stub)   //from non-enclave to enclave
-{
-    if (stub != NULL) {
-        stub->ret = 0;
-        stub->pending_page = 0;
-        memset(stub->in_data1, 0 , SGXLIB_MAX_ARG);
-        memset(stub->in_data2, 0 , SGXLIB_MAX_ARG);
-    }
-
-    //TODO:stub->heap_beg/heap_end need to be cleared after data section is relocated into enclave.
-}
-
-static
-void clear_abi_out_fields(sgx_stub_info *stub)  //from enclave to non-enclave
-{
-    if (stub != NULL) {
-        stub->fcode = FUNC_UNSET;
-        stub->mcode = MALLOC_UNSET;
-        stub->out_arg1 = 0;
-        stub->out_arg2 = 0;
-        stub->addr = 0;
-        memset(stub->out_data1, 0, SGXLIB_MAX_ARG);
-        memset(stub->out_data2, 0, SGXLIB_MAX_ARG);
-        memset(stub->out_data3, 0, SGXLIB_MAX_ARG);
-    }
-}
-
-//Trampoline code for stub handling in user
-void sgx_trampoline()
-{
-    unsigned long epc_heap_beg = 0;
-    unsigned long epc_heap_end = 0;
-    unsigned long pending_page = 0;
-    int n_read = 0;
-    int n_send = 0;
-
-    sgx_msg(info, "Trampoline Entered");
-    sgx_stub_info *stub = (sgx_stub_info *)STUB_ADDR;
-    clear_abi_in_fields(stub);
-
-    dbg_dump_stub_out(stub);
-
-    switch (stub->fcode) {
-    case FUNC_PUTS:
-        //sgx_puts(srcData)
-        sgx_puts_tramp(stub->out_data1);
-        break;
-    case FUNC_SEND:
-        // sgx_send(ip, port, msg, len)
-        n_send = sgx_send_tramp((char *)stub->out_data1, (char *)stub->out_data2,
-                       (void *)stub->out_data3, (size_t)stub->out_arg1);
-        stub->in_arg1 = n_send;
-        break;
-    case FUNC_RECV:
-        //sgx_recv(port, recv_buf, bufSize): return #of bytes read from the recv
-        n_read = sgx_recv_tramp((char *)stub->out_data1, (void *)stub->in_data1,
-                               (size_t)stub->out_arg1);
-        stub->in_arg1 = n_read;
-        break;
-    case FUNC_CLOSE_SOCK:
-	sgx_close_sock_tramp();
-    case FUNC_MALLOC:
-        if (stub->mcode == MALLOC_INIT) {
-            epc_heap_beg = get_epc_heap_beg();
-            stub->heap_beg = epc_heap_beg;
-            epc_heap_end = get_epc_heap_end();
-            stub->heap_end = epc_heap_end;
-        }
-        else if (stub->mcode == REQUEST_EAUG) {
-            pending_page = syscall_execute_EAUG();
-            if (!pending_page)
-                printf("DEBUG failed in EAUG\n");
-            else{
-                printf("DEBUG succeed in EAUG\n");
-                printf("DEBUG pending page is %p\n", (void *)pending_page);
-                stub->pending_page = pending_page;
-            }
-        }
-        else{
-            sgx_msg(warn, "Incorrect malloc code");
-        }
-        break;
-    case FUNC_FREE:
-        break;
-    case PRINT_HEX:
-        printf("print hex test: %p\n", (void *)stub->addr);
-        break;
-/*
-    case FUNC_SYSCALL:
-        sgx_syscall();
-	break;
-*/
-    default:
-        sgx_msg(warn, "Incorrect function code");
-        return;
-        break;
-    }
-
-    clear_abi_out_fields(stub);
-    dbg_dump_stub_in(stub);
-    // ERESUME at the end w/ info->tcs
-    ERESUME(stub->tcs, 0);
-}
-
 int sgx_init(void)
 {
-    assert(sizeof(struct sgx_stub_info) < PAGE_SIZE);
 
-    sgx_stub_info *stub = mmap((void *)STUB_ADDR, PAGE_SIZE,
-                               PROT_READ|PROT_WRITE,
-                               MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
-    if (stub == MAP_FAILED)
-        return 0;
-
-    //stub area init
-    memset((void *)stub, 0x00, PAGE_SIZE);
-
-    stub->abi = OPENSGX_ABI_VERSION;
-    stub->trampoline = (void *)(uintptr_t)sgx_trampoline;
-
-    return sys_sgx_init();
+    return sys_sgx_init(NULL);
 }
 

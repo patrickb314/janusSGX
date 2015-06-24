@@ -61,7 +61,7 @@ SECTIONS
     *(.text.exit .text.exit.*)
     *(.text.startup .text.startup.*)
     *(.text.hot .text.hot.*)
-    *(EXCLUDE_FILE(test/*.o demo/*.o *Lib* ssl_*).text .stub .text.* .gnu.linkonce.t.*)
+    *(EXCLUDE_FILE(test/*.o test2/*.o bootstrap/*.o demo/*.o *Lib* sgxlib* ssl_*).text .stub .text.* .gnu.linkonce.t.*)
     /* .gnu.warning sections are handled specially by elf32.em.  */
     *(.gnu.warning)
   } =0x90909090
@@ -72,7 +72,7 @@ SECTIONS
   PROVIDE (__etext = .);
   PROVIDE (_etext = .);
   PROVIDE (etext = .);
-  .rodata         : { *(EXCLUDE_FILE(test/*.o demo/*.o *Lib* ssl_*).rodata .rodata.* .gnu.linkonce.r.*) }
+  .rodata         : { *(EXCLUDE_FILE(test/*.o test2/*.o bootstrap/*.o demo/*.o *Lib* sgxlib* ssl_*).rodata .rodata.* .gnu.linkonce.r.*) }
   .rodata1        : { *(.rodata1) }
   .eh_frame_hdr : { *(.eh_frame_hdr) }
   .eh_frame       : ONLY_IF_RO { KEEP (*(.eh_frame)) }
@@ -150,7 +150,7 @@ SECTIONS
   .got.plt        : { *(.got.plt)  *(.igot.plt) }
   .data           :
   {
-    *(EXCLUDE_FILE(test/*.o demo/*.o *Lib* ssl_*).data .data.* .gnu.linkonce.d.*)
+    *(EXCLUDE_FILE(test/*.o test2/*.o bootstrap/*.o demo/*.o *Lib* sgxlib* ssl_*).data .data.* .gnu.linkonce.d.*)
     SORT(CONSTRUCTORS)
   }
   .data1          : { *(.data1) }
@@ -159,8 +159,8 @@ SECTIONS
   .bss            :
   {
    *(.dynbss)
-   *(EXCLUDE_FILE(test/*.o demo/*.o *Lib* ssl_*).bss .bss.* .gnu.linkonce.b.*)
-   *(EXCLUDE_FILE(test/*.o *Lib* ssl_*)COMMON)
+   *(EXCLUDE_FILE(test/*.o test2/*.o bootstrap/*.o demo/*.o *Lib* sgxlib* ssl_*).bss .bss.* .gnu.linkonce.b.*)
+   *(EXCLUDE_FILE(test/*.o test2/*.o bootstrap/*.o *Lib* sgxlib* ssl_*)COMMON)
    /* Align here to ensure that the .bss section occupies space up to
       _end.  Align after .bss to ensure correct alignment even if the
       .bss section disappears because there are no input sections.
@@ -173,9 +173,12 @@ SECTIONS
     {
       ENCT_START = .;
       test/*.o(.text)
+      test2/*.o(.text)
+      bootstrap/*.o(.text)
       demo/*.o(.text)
       *(.enc_text) 
       *Lib*(.text)
+      sgxlib*(.text)
       ssl_*(.text)
       ENCT_END = ALIGN(0x1000);
     } =0x90909090
@@ -183,9 +186,12 @@ SECTIONS
     {
       ENCD_START = .;
       test/*.o(.data .bss .rodata .rodata.* COMMON)
+      test2/*.o(.data .bss .rodata .rodata.* COMMON)
+      bootstrap/*.o(.data .bss .rodata .rodata.* COMMON)
       demo/*.o(.data .bss .rodata .rodata.* COMMON)
       *(.enc_data)
       *Lib*(.data .bss .rodata .rodata.* COMMON)
+      sgxlib*(.data .bss .rodata .rodata.* COMMON)
       ssl_*(.data .bss .rodata .rodata.* COMMON)
       ENCD_END = ALIGN(0x1000);
     } =0x90909090

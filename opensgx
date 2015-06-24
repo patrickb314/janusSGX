@@ -3,7 +3,7 @@ ROOT=$(dirname "$0")
 SGXTOOL=$ROOT/user/sgx-tool
 SGX=$ROOT/sgx
 DEVICEKEY=$ROOT/user/conf/device.key
-
+INTELKEY=$ROOT/user/conf/intel.key
 
 key_gen() {
   FILENAME=sign.key
@@ -67,6 +67,26 @@ measure() {
   $SGXTOOL -m $1 $SZ$size $CO$offset $CS$code_start $CE$code_end $DS$data_start $DE$data_end $EN$entry
 }
 
+sign-intel() {
+  BASEDIR=$(dirname $1)
+  BASENAME=$(basename $1)
+  NAME="${BASENAME%.*}"
+  MEASURE=$BASEDIR/$NAME-measurement.conf
+  SIG=$BASEDIR/$NAME-sig.conf
+  TOKEN=$BASEDIR/$NAME-token.conf
+  CONF=$BASEDIR/$NAME.conf
+
+  echo "Intel-signing enclave"
+
+  touch $CONF
+  measure $1 > $MEASURE
+
+  $SGXTOOL -S $MEASURE -I > $SIG
+  $SGXTOOL -s $SIG --key=$INTELKEY > $CONF
+  $SGXTOOL -E $CONF >> $CONF
+  rm $MEASURE $SIG 
+}
+
 sign() {
   BASEDIR=$(dirname $1)
   BASENAME=$(basename $1)
@@ -79,6 +99,7 @@ sign() {
   touch $CONF
   measure $1 > $MEASURE
 
+  echo "Regular signed enclave"
   $SGXTOOL -S $MEASURE > $SIG
   $SGXTOOL -s $SIG --key=$2 > $CONF
   $SGXTOOL -E $CONF > $TOKEN
@@ -101,6 +122,9 @@ case "$1" in
   case "$3" in
     -k|--key)
     sign $2 $4
+    ;;
+    -I|--intel)
+    sign-intel $2
     ;;
   esac
   ;;

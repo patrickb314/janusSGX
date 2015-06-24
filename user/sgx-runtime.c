@@ -7,7 +7,7 @@
 #include <sys/socket.h>
 #include <netdb.h>
 #include <unistd.h>
-#include <sgx-malloc.h>
+#include <asm/ptrace.h>
 
 #include <sgx-lib.h>
 
@@ -19,13 +19,7 @@ extern void ENCT_END;
 extern void ENCD_START;
 extern void ENCD_END;
 
-void enclave_start() \
-    __attribute__((section(".enc_text")));
-void enclave_start()
-{
-    enclave_main();
-    sgx_exit(NULL);
-}
+void enclave_start();
 
 int main(int argc, char **argv)
 {

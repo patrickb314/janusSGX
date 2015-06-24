@@ -11,6 +11,4 @@ void enclave_main()
 {
     int rtn = func_in_enclave(5, 6);
     (void) rtn;
-
-    sgx_exit(NULL);
 }

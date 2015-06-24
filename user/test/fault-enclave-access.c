@@ -11,5 +11,4 @@ void enclave_main()
     // 20 pages after here : this is an EPC region but not for this enclave
     *(char *)(ptr + 0x20000) = 1;
 
-    sgx_exit(NULL);
 }

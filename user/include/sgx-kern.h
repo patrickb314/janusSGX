@@ -2,7 +2,7 @@
 
 #include <sgx.h>
 
-extern bool sys_sgx_init(void);
+extern bool sys_sgx_init(void *devicekey);
 extern int syscall_create_enclave(void *entry, void *codes, unsigned int code_pages, 
                                   tcs_t *tcs, sigstruct_t *sig, einittoken_t *token, 
                                   int intel_flag);

@@ -211,7 +211,7 @@ void init_thread_storage(tcs_t *tcs)
     tcs->fslimit = PAGE_SIZE - 1;
     tcs->gslimit = PAGE_SIZE - 1;
 
-    // Make GS follows by the end of FS range.
+    // Make GS follow the end of FS range.
     tcs->ofsbasgx = 0;
     tcs->ogsbasgx = tcs->ofsbasgx + tcs->fslimit + 1;
 }
@@ -220,8 +220,8 @@ void init_thread_storage(tcs_t *tcs)
 static
 void set_stack_frame(tcs_t *tcs)
 {
-    tcs->nssa = STACK_PAGE_FRAMES_PER_THREAD;
-    tcs->cssa = 2;
+    tcs->nssa = STACK_PAGE_FRAMES_PER_THREAD; /* XXX PGB - Divide by secs->ssaframesize once that's bigger than 1 */
+    tcs->cssa = 2; /* XXX PGB - Why? This is zeroed by EADD... */
 }
 
 // Set tcs oentry.
@@ -264,6 +264,7 @@ void generate_enclavehash(void *hash, void *code, int code_pages,
     void *page;
 
     // Pre-compute tcs.
+    // XXX PGB - should handle more than one TCS
     tmp_tcs = (tcs_t *)memalign(PAGE_SIZE, sizeof(tcs_t));
     if (!tmp_tcs)
         err(1, "failed to allocate tcs");
@@ -285,7 +286,8 @@ void generate_enclavehash(void *hash, void *code, int code_pages,
     g_update_counter = 0;
 
     // Pre-compute ssa frame and enclave size.
-    ssa_frame_size = 1;
+    ssa_frame_size = 1; /* XXXPGB - should depend on the number of pages for 
+			 * xsave and the enclave stack */
 
     // Set enclave_size
     npages = rop2(npages);
@@ -548,8 +550,9 @@ void rsa_sign(rsa_context *ctx, rsa_sig_t sig,
     int ret = rsa_pkcs1_sign(ctx, NULL, NULL, RSA_PRIVATE,
                              POLARSSL_MD_SHA1, HASH_SIZE, hash,
                              (unsigned char *)sig);
-    if (ret)
+    if (ret) {
         err(1, "failed to sign: 0x%x", -ret);
+    }
 }
 
 // Allocate PKCS padding constant (352 bytes).
@@ -632,6 +635,9 @@ einittoken_t *alloc_einittoken_le(void)
 
     // KEYID(32 bytes)
     memset(&t->keyid, 0, sizeof(t->keyid));
+
+    // XXX would this be 0x3 or masked out?
+    //t->maskedAttributesLE.xfrm = 0x3;
 
     // MAC(16 bytes)
     memset(&t->mac, 0, sizeof(t->mac));
