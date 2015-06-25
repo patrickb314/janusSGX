@@ -8,7 +8,8 @@ SSL_OBJS := polarssl/rsa.o polarssl/entropy.o polarssl/ctr_drbg.o \
 	polarssl/ripemd160.o polarssl/net.o polarssl/aes_cmac128.o
 
 LIBSGX_OBJS := lib/sgxlib_base.o lib/sgxlib_crypto.o lib/sgxlib_malloc.o
-LDLIBS=-L. -lsgx -lsgxssl -lsgx
+SGX_START=sgx-entry.o
+SGX_LDLIBS=-L. -lsgx -lsgxssl -lsgx
 
 CFLAGS := -g -Iinclude -Iopenssl/include -Wall -pedantic -Wno-unused-function -std=gnu11 -fno-stack-protector -static -fPIC -fvisibility=hidden
 ASFLAGS := -D__ASSEMBLY__ -Iinclude -Wall -fno-stack-protector -static -fPIC
@@ -18,10 +19,10 @@ BOOTSTRAP_BINS = bootstrap/bootstrap-launch.sgx
 #bootstrap-quote bootstrap-test
 
 HDRS := $(wildcard include/sgx*.h)
-BINS := $(patsubst %.c,%,$(wildcard test/*.c)) \
-	$(patsubst %.c,%,$(wildcard test2/*.c)) \
+BINS := $(patsubst %.c,%.sgx,$(wildcard test/*.c)) \
+	$(patsubst %.c,%.sgx,$(wildcard test2/*.c)) \
         $(patsubst %.c,%.sgx,$(wildcard demo/*.c)) \
-	$(BOOTSTRAP_BINS)
+	sgx-mmap-runtime
 ALL  := $(BINS) sgx-tool
 
 all: $(ALL)
@@ -50,26 +51,23 @@ sgx-%.o: sgx-%.c $(HDRS)
 example1: example1.S
 	$(CC) -nostdlib $< -o $@ $(LDLIBS)
 
-test/%: test/%.o $(SGX_OBJS) $(SSL_OBJS) $(SGX_LIBS) sgx-test-runtime.o
-	$(CC) $(CFLAGS) -Wl,-T,sgx.lds $^ -o $@  $(LDLIBS)
+test/%.sgx: test/%.o $(SGX_LIBS)
+	$(CC) $(CFLAGS) -nostartfiles -Wl,-T,sgx2.lds $< $(SGX_START) -o $@  $(SGX_LDLIBS)
 
-test2/%: test2/%.o $(SGX_OBJS) $(SSL_OBJS) $(SGX_LIBS) sgx-argtest-runtime.o
-	$(CC) $(CFLAGS) -Wl,-T,sgx.lds $^ -o $@  $(LDLIBS)
-
-demo/%.sgx: demo/%.o $(SGX_OBJS) $(SSL_OBJS) $(SGX_LIBS) sgx-runtime.o
-	$(CC) $(CFLAGS) -Wl,-T,sgx.lds $^ -o $@  $(LDLIBS)
+demo/%.sgx: demo/%.o $(SGX_OBJS) $(SSL_OBJS) $(SGX_LIBS)
+	$(CC) $(CFLAGS) -nostartfiles -Wl,-T,sgx2.lds $< $(SGX_START) -o $@  $(SGX_LDLIBS)
 
 bootstrap/%.o: bootstrap/%.c $(HDRS)
 	$(CC) -c $(CFLAGS) -o $@ $<
 
-bootstrap/bootstrap-launch.sgx: bootstrap/launch_enclave.o $(SGX_OBJS) $(SSL_OBJS) $(SGX_LIBS) bootstrap-launch.o
-	$(CC) $(CFLAGS) -Wl,-T,sgx.lds $^ -o $@  $(LDLIBS)
+bootstrap/launch-enclave.sgx: bootstrap/launch_enclave.o $(SGX_OBJS) $(SSL_OBJS) $(SGX_LIBS)
+	$(CC) $(CFLAGS) -nostartfiles -Wl,-T,sgx2.lds $< -o $@ $(SGX_START) $(SGX_LDLIBS)
 
-bootstrap-quote: bootstrap/quoting_enclave.o $(SGX_OBJS) $(SSL_OBJS) $(SGX_LIBS) bootstrap-quote.o
-	$(CC) $(CFLAGS) -Wl,-T,sgx.lds $^ -o $@  $(LDLIBS)
+bootstrap-quote/quoting-enclave.sgx: bootstrap/quoting_enclave.o $(SGX_OBJS) $(SSL_OBJS) $(SGX_LIBS)
+	$(CC) $(CFLAGS) -nostartfiles -Wl,-T,sgx2.lds $< -o $@ $(SGX_START) $(SGX_LDLIBS)
 
-bootstrap-test: boostrap/test-enclave.o $(SGX_OBJS) $(SSL_OBJS) $(SGX_LIBS) bootstrap-test.o
-	$(CC) $(CFLAGS) -Wl,-T,sgx.lds $^ -o $@  $(LDLIBS)
+sgx-mmap-runtime: sgx-mmap-runtime.o $(SGX_OBJS) $(SSL_OBJS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS) -lelf
 
 clean: 
 	rm -f polarssl/*.o *.o $(ALL)
