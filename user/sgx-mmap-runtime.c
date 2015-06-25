@@ -95,7 +95,7 @@ void *load_elf_enclave(char *filename, size_t *npages, void **entry)
 		fdataend = phdr.p_vaddr + phdr.p_filesz;
 		mend = round_up(phdr.p_vaddr + phdr.p_memsz, PAGE_SIZE);
 		pflags = elf_to_mmap_flags(phdr.p_flags);
-		fprintf(stdout, "Loading ELF region [start=%x, vaddr=%x, fend=%x, end=%x)",
+		fprintf(stdout, "Loading ELF region [start=%lx, vaddr=%lx, fend=%lx, end=%lx)\n",
 			start, phdr.p_vaddr, fdataend, mend);
 		p = mmap((void *)start, fend-start, pflags, MAP_PRIVATE, 
 			 fd, round_down(phdr.p_offset, PAGE_SIZE));
@@ -103,7 +103,7 @@ void *load_elf_enclave(char *filename, size_t *npages, void **entry)
 			perror("mmap");
 			return NULL;
 		}
-		if (fend < fdataend) {
+		if (fend > fdataend) {
 			memset((void *)fdataend, 0, fend - fdataend);
 		}
 		if (p < addr) {
@@ -134,6 +134,7 @@ int main(int argc, char **argv)
 	size_t npages;
 	int keid;
 	keid_t stat;
+	int j;
 
     	if (argc < 1) {
         	fprintf(stderr, "Please specify enclave binary to load\n");
@@ -158,8 +159,10 @@ int main(int argc, char **argv)
         	err(1, "failed to stat enclave");
 
     	fprintf(stdout, "a_val = %d.\n", a_val);
-    	enclave1_call(stat.tcs, exception_handler, &a_val);
-    	fprintf(stdout, "a_val = %d.\n", a_val);
+	for (j = 0; j < 10; j++) {
+    		enclave1_call(stat.tcs, exception_handler, &a_val);
+    		fprintf(stdout, "a_val = %d.\n", a_val);
+	}
 
     	return 0;
 }
