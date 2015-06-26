@@ -19,8 +19,6 @@
 keid_t kenclaves[MAX_ENCLAVES];
 
 char *empty_page;
-static epc_t *epc_heap_beg;
-static epc_t *epc_heap_end;
 
 static einittoken_t *app_token;
 static int cur_eid;
@@ -335,24 +333,8 @@ bool add_empty_pages_to_epc(int eid, int npages, epc_t *secs,
             return false;
         if (!add_page_to_epc(empty_page, epc, secs, pt))
             return false;
-        if (i == 0 && is_heap) {
-            epc_heap_beg = epc;
-            printf("DEBUG epc heap beg is set as %p\n",(void *)epc_heap_beg);
-        }
-        if ((i == npages -1) && is_heap) {
-            epc_heap_end = (epc_t *)((char *)epc + PAGE_SIZE - 1);
-            printf("DEBUG epc heap end is set as %p\n",(void *)epc_heap_end);
-        }
     }
     return true;
-}
-
-unsigned long get_epc_heap_beg() {
-    return (unsigned long)epc_heap_beg;
-}
-
-unsigned long get_epc_heap_end() {
-    return (unsigned long)epc_heap_end;
 }
 
 // init custom data structures for qemu-sgx

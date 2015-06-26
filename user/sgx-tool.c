@@ -81,23 +81,20 @@ void cmd_measure(char *binary, char *size, char *offset, char *code_start, char 
 	if (n < 0)
         return;
 
-    long ecode_size = strtol(code_end, NULL, 16) - strtol(code_start, NULL, 16);
-    long edata_size = strtol(data_end, NULL, 16) - strtol(data_start, NULL, 16);
-    int ecode_page_n = ((ecode_size - 1) / PAGE_SIZE) + 1;
-    int edata_page_n = ((edata_size - 1) / PAGE_SIZE) + 1;
-    int n_of_pages = ecode_page_n + edata_page_n;
+    long enclave_size = strtol(data_end, NULL, 16) - strtol(code_start, NULL, 16);
+    int n_of_pages = ((enclave_size - 1) / PAGE_SIZE) + 1;
     long code_offset = strtol(offset, NULL, 16);
     long entry_offset = strtol(entry, NULL, 16) -  strtol(code_start, NULL, 16);
 
-    printf("ecode_size: %ld edata_size: %ld offset: %ld entry_offset: %ld\n", ecode_size,
-                                                                              edata_size, code_offset, entry_offset);
+    printf("%d pages: enclave_size: %ld offset: %ld entry_offset: %ld\n", 
+	   n_of_pages, enclave_size, code_offset, entry_offset);
 
     unsigned char *code;
     unsigned char hash[32];
 
     code = (unsigned char *)malloc(n_of_pages * PAGE_SIZE);
     memset(code, 0, n_of_pages * PAGE_SIZE);
-    memcpy(code, buffer + code_offset, n_of_pages * PAGE_SIZE);
+    memcpy(code, buffer + code_offset, enclave_size);
 
     generate_enclavehash(hash, code, n_of_pages, entry_offset);
 
@@ -106,9 +103,8 @@ void cmd_measure(char *binary, char *size, char *offset, char *code_start, char 
     // HASH: XXX
     // PUBKEY: ...
 
-    uint64_t target_size = ecode_size + edata_size;
     printf("# target binary\n");
-    printf("offset: %lX size: %ld bytes\n", code_offset, target_size);
+    printf("offset: %lX size: %ld bytes\n", code_offset, enclave_size);
 
     int i;
     for (i = 0; i < 20; i++)

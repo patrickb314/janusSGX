@@ -31,26 +31,28 @@ run_enclave() {
 
 measure() {
   size=$(stat -c%s $1)
+  /bin/echo "Size:" $size 
 
-  offset=$(readelf -S $1 | grep .enc_text)
+  offset=$(readelf -l $1 | grep LOAD)
   array=($offset)
-  offset=${array[4]}
+  offset=${array[1]}
 
-  code_start=$(nm $1 | grep ENCT_START)
+  echo $size $offset 
+
+  code_start=$(readelf -l $1 | grep LOAD)
   array=($code_start)
-  code_start=${array[0]}
+  code_start=${array[2]}
 
-  code_end=$(nm $1 | grep ENCT_END)
+  code_end=$(nm $1 | grep _edata)
   array=($code_end)
   code_end=${array[0]}
 
-  data_start=$(nm $1 | grep ENCD_START)
-  array=($data_start)
-  data_start=${array[0]}
+  echo $size $offset  $code_start $code_end 
 
-  data_end=$(nm $1 | grep ENCD_END)
-  array=($data_end)
-  data_end=${array[0]}
+  data_start=$code_end
+  data_end=$code_end
+
+  echo $size $offset  $code_start $code_end $data_start $data_end
 
   entry=$(nm $1 | grep enclave_start)
   array=($entry)
@@ -76,8 +78,6 @@ sign-intel() {
   TOKEN=$BASEDIR/$NAME-token.conf
   CONF=$BASEDIR/$NAME.conf
 
-  echo "Intel-signing enclave"
-
   touch $CONF
   measure $1 > $MEASURE
 
@@ -99,7 +99,6 @@ sign() {
   touch $CONF
   measure $1 > $MEASURE
 
-  echo "Regular signed enclave"
   $SGXTOOL -S $MEASURE > $SIG
   $SGXTOOL -s $SIG --key=$2 > $CONF
   $SGXTOOL -E $CONF > $TOKEN

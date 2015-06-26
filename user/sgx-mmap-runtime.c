@@ -91,17 +91,24 @@ void *load_elf_enclave(char *filename, size_t *npages, void **entry)
 			continue;
 		
 		start = round_down(phdr.p_vaddr, PAGE_SIZE);
-		fend  = round_up(phdr.p_vaddr + phdr.p_filesz, PAGE_SIZE);
 		fdataend = phdr.p_vaddr + phdr.p_filesz;
+		fend  = round_up(phdr.p_vaddr + phdr.p_filesz, PAGE_SIZE);
 		mend = round_up(phdr.p_vaddr + phdr.p_memsz, PAGE_SIZE);
 		pflags = elf_to_mmap_flags(phdr.p_flags);
 		fprintf(stdout, "Loading ELF region [start=%lx, vaddr=%lx, fend=%lx, end=%lx)\n",
 			start, phdr.p_vaddr, fdataend, mend);
-		p = mmap((void *)start, fend-start, pflags, MAP_PRIVATE, 
+		p = mmap((void *)start, fend-start, pflags, MAP_PRIVATE|MAP_FIXED, 
 			 fd, round_down(phdr.p_offset, PAGE_SIZE));
-		if (!addr) {
+		if (!p) {
 			perror("mmap");
 			return NULL;
+		} 
+		if (p != start) {
+			fprintf(stderr, "mmap returned allocation add address %p, not %lx as requested.\n",
+				p, start);
+		}
+		if (start < phdr.p_vaddr) {
+			memset((void *)start, 0, start - phdr.p_vaddr);
 		}
 		if (fend > fdataend) {
 			memset((void *)fdataend, 0, fend - fdataend);
@@ -112,8 +119,18 @@ void *load_elf_enclave(char *filename, size_t *npages, void **entry)
 		}
 
 		if (mend > fend) {
-			p = mmap((void *)fend, mend-fend, pflags, MAP_ANONYMOUS,
+			p = mmap((void *)fend, mend-fend, pflags, 
+				 MAP_PRIVATE|MAP_FIXED|MAP_ANONYMOUS,
 				 -1, 0); 
+			if (!p) {
+				perror("mmap");
+				return NULL;
+			}
+			if (p != fend) {
+				fprintf(stderr, "mmap returned allocation add address %p, not %lx as requested.\n",
+						 p, start);
+				return NULL;
+			}
 			*npages += (mend-fend)/PAGE_SIZE;
 		}
 	}
@@ -148,21 +165,20 @@ int main(int argc, char **argv)
 		conf = NULL;
 	}
 	
-	pages = load_elf_enclave(enclave, &npages, &entry);
-
     	if(!sgx_init())
         	err(1, "failed to init sgx");
 
+	pages = load_elf_enclave(enclave, &npages, &entry);
+
+	fprintf(stdout, "Creating enclave of %d pages at address %p.\n", npages, pages);
     	keid = create_enclave(entry, pages, npages, conf);
 
     	if (syscall_stat_enclave(keid, &stat) < 0)
         	err(1, "failed to stat enclave");
 
     	fprintf(stdout, "a_val = %d.\n", a_val);
-	for (j = 0; j < 10; j++) {
     		enclave1_call(stat.tcs, exception_handler, &a_val);
     		fprintf(stdout, "a_val = %d.\n", a_val);
-	}
 
     	return 0;
 }
