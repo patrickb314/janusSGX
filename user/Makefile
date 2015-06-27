@@ -1,6 +1,6 @@
 SGX_LIBS := sgx-entry.o libsgx.a libsgxssl.a
 SGX_RUNTIME := sgx-runtime.o sgx-test-runtime.o
-SGX_OBJS := sgx-user.o sgx-kern.o sgx-kern-epc.o sgx-utils.o sgx-signature.o 
+SGX_OBJS := sgx-user.o sgx-elf.o sgx-kern.o sgx-kern-epc.o sgx-utils.o sgx-signature.o 
 SSL_OBJS := polarssl/rsa.o polarssl/entropy.o polarssl/ctr_drbg.o \
 	polarssl/bignum.o polarssl/md.o polarssl/oid.o polarssl/asn1parse.o polarssl/sha1.o \
 	polarssl/sha512.o polarssl/aes.o polarssl/entropy_poll.o polarssl/aesni.o \
@@ -9,6 +9,7 @@ SSL_OBJS := polarssl/rsa.o polarssl/entropy.o polarssl/ctr_drbg.o \
 
 LIBSGX_OBJS := lib/sgxlib_base.o lib/sgxlib_crypto.o lib/sgxlib_malloc.o
 SGX_START=sgx-entry.o
+LDLIBS=-lelf
 SGX_LDLIBS=-L. -lsgx -lsgxssl -lsgx
 
 CFLAGS := -g -Iinclude -Iopenssl/include -Wall -pedantic -Wno-unused-function -std=gnu11 -fno-stack-protector -static -fPIC -fvisibility=hidden
@@ -43,7 +44,7 @@ polarssl/%.o: polarssl/%.c
 	$(CC) -c $(ASFLAGS) -o $@ $<
 
 sgx-tool: sgx-tool.o $(SGX_OBJS) $(SSL_OBJS)
-	$(CC) $^ $(CFLAGS) -o $@
+	$(CC) $^ $(CFLAGS) -o $@ $(LDLIBS)
 
 sgx-%.o: sgx-%.c $(HDRS)
 	$(CC)  -c $(CFLAGS) $< -o $@

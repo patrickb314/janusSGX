@@ -60,60 +60,29 @@ void cmd_pkg(char *bin)
     // TODO
 }
 
-void cmd_measure(char *binary, char *size, char *offset, char *code_start, char *code_end,
-                 char *data_start, char *data_end, char *entry)
+void cmd_measure(char *binary)
 {
-    FILE *fp = NULL;
-    unsigned char *buffer;
-    long nbits;
-    int n;
+	char *entry, *code;
+	size_t n_of_pages;
+    	unsigned char hash[32];
+    	int i;
 
-    nbits = atoi(size) * 8;
-    buffer = malloc(nbits);
-    memset(buffer, 0, nbits);
+	code = load_elf_enclave(binary, &n_of_pages, (void **)&entry);
 
-    fp = fopen(binary, "rb");
-    if (fp == NULL)
-        return;
+	if (!code) {
+		fprintf(stderr, "measure failed to load enclave binary.\n");
+		return;
+	}
 
-    n = fread(buffer, nbits, 1, fp);
-    // XXX: fread will return 0 when MAX_BUFFER_SIZE > BINARY SIZE
-	if (n < 0)
-        return;
+	generate_enclavehash(hash, code, n_of_pages, entry-code);
 
-    long enclave_size = strtol(data_end, NULL, 16) - strtol(code_start, NULL, 16);
-    int n_of_pages = ((enclave_size - 1) / PAGE_SIZE) + 1;
-    long code_offset = strtol(offset, NULL, 16);
-    long entry_offset = strtol(entry, NULL, 16) -  strtol(code_start, NULL, 16);
+    	for (i = 0; i < 20; i++)
+        	printf("%02X ", code[i]);
+    	printf("\n");
 
-    printf("%d pages: enclave_size: %ld offset: %ld entry_offset: %ld\n", 
-	   n_of_pages, enclave_size, code_offset, entry_offset);
-
-    unsigned char *code;
-    unsigned char hash[32];
-
-    code = (unsigned char *)malloc(n_of_pages * PAGE_SIZE);
-    memset(code, 0, n_of_pages * PAGE_SIZE);
-    memcpy(code, buffer + code_offset, enclave_size);
-
-    generate_enclavehash(hash, code, n_of_pages, entry_offset);
-
-    // generate sgx-[binary].conf
-    // # ENTRY: (size, offset)
-    // HASH: XXX
-    // PUBKEY: ...
-
-    printf("# target binary\n");
-    printf("offset: %lX size: %ld bytes\n", code_offset, enclave_size);
-
-    int i;
-    for (i = 0; i < 20; i++)
-        printf("%02X ", code[i]);
-    printf("\n");
-
-    char *hash_str = fmt_bytes(hash, 32);
-    printf("# generated measurement\n");
-    printf("MEASUREMENT: %s\n", hash_str);
+    	char *hash_str = fmt_bytes(hash, 32);
+    	printf("# generated measurement\n");
+    	printf("MEASUREMENT: %s\n", hash_str);
 }
 
 void cmd_gen_sigstruct(char *conf, int intel)
@@ -556,24 +525,9 @@ int main(int argc, char *argv[])
             cmd_help();
             break;
         case 'm': {
-            char *binary, *size, *offset, *code_start, *code_end, \
-                 *data_start, *data_end, *entry;
+            char *binary;
             binary = optarg;
-            c = getopt_long(argc, argv, "z:", options, &optind);
-            size = optarg;
-            c = getopt_long(argc, argv, "o:", options, &optind);
-            offset = optarg;
-            c = getopt_long(argc, argv, "a:", options, &optind);
-            code_start = optarg;
-            c = getopt_long(argc, argv, "b:", options, &optind);
-            code_end = optarg;
-            c = getopt_long(argc, argv, "c:", options, &optind);
-            data_start = optarg;
-            c = getopt_long(argc, argv, "d:", options, &optind);
-            data_end = optarg;
-            c = getopt_long(argc, argv, "e:", options, &optind);
-            entry = optarg;
-            cmd_measure(binary, size, offset, code_start, code_end, data_start, data_end, entry);
+            cmd_measure(binary);
             break;
         }
         case 's': {

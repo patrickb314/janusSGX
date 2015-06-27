@@ -15,6 +15,7 @@
 #define SGXLIB_MAX_ARG  512
 
 extern int sgx_init(void);
+void *load_elf_enclave(char *filename, size_t *npages, void **entry);
 
 /* Macros to define user-side enclave calls with different argument
  * numbers */
@@ -85,11 +86,10 @@ void name(tcs_t *tcs, void (*aep)(), type1 arg1, type2 arg2, 	\
 		  "c"(aep)					\
                 : "memory", "r11", "cc" 			\
         );                                                      \
-        return status;                                          \
 }
 
-#define SYSCALL4(name, type1, type2, type3, type4)              \
-int name(type1 arg1, type2 arg2, type3 arg3, type4 arg4) {      \
+#define ENCCALL4(name, type1, type2, type3, type4)              \
+void name(tcs_t tcs, void (*aep)(), type1 arg1, type2 arg2, type3 arg3, type4 arg4) {      \
         int status;                                             \
         register type1 rdi asm("rdi");                          \
         register type2 rsi asm("rsi");                          \
@@ -100,20 +100,19 @@ int name(type1 arg1, type2 arg2, type3 arg3, type4 arg4) {      \
         rdx = arg3;                                             \
         r10 = arg4;                                             \
         asm volatile(                                           \
-                "syscall"                                       \
-                : "=a" (status)                                 \
-                : "0" (__NR_##name),                            \
-                  "r" (rdi),                                    \
-                  "r" (rsi),                                    \
-                  "r" (rdx),                                    \
-                  "r" (r10)                                     \
-                : "memory", "rcx", "r11", "cc"                  \
+                ".byte 0x0F\n\t"                                    \
+                ".byte 0x01\n\t"                                    \
+                ".byte 0xd7\n\t"                                    \
+		: "=c"(aep)					\
+                : "0"((uint32_t)ENCLU_EENTER),			\
+		  "b"(tcs),					\
+		  "c"(aep)					\
+                : "memory", "r11", "cc" 			\
         );                                                      \
-        return status;                                          \
 }
 
-#define SYSCALL5(name, type1, type2, type3, type4, type5)       \
-int name(type1 arg1, type2 arg2, type3 arg3, type4 arg4,        \
+#define ENCCALL5(name, type1, type2, type3, type4, type5)       \
+void name(tcs_t *tcs, void (*aep)(), type1 arg1, type2 arg2, type3 arg3, type4 arg4,        \
          type5 arg5) {                                          \
         register type1 rdi asm("rdi");                          \
         register type2 rsi asm("rsi");                          \
@@ -125,21 +124,20 @@ int name(type1 arg1, type2 arg2, type3 arg3, type4 arg4,        \
         rdx = arg3;                                             \
         r10 = arg4;                                             \
         r8  = arg5;                                             \
-                "syscall"                                       \
-                : "=a" (status)                                 \
-                : "0" (__NR_##name),                            \
-                  "r" (rdi),                                    \
-                  "r" (rsi),                                    \
-                  "r" (rdx),                                    \
-                  "r" (r10),                                    \
-                  "r" (r8)                                      \
-                : "memory", "rcx", "r11", "cc"                  \
+        asm volatile(                                           \
+                ".byte 0x0F\n\t"                                    \
+                ".byte 0x01\n\t"                                    \
+                ".byte 0xd7\n\t"                                    \
+		: "=c"(aep)					\
+                : "0"((uint32_t)ENCLU_EENTER),			\
+		  "b"(tcs),					\
+		  "c"(aep)					\
+                : "memory", "r11", "cc" 			\
         );                                                      \
-        return status;                                          \
 }
 
-#define SYSCALL6(name, type1, type2, type3, type4, type5, type6)\
-int name(type1 arg1, type2 arg2, type3 arg3, type4 arg4,        \
+#define ENCCALL6(name, type1, type2, type3, type4, type5, type6)\
+void name(tcs_t *tcs, void (*aep)(), type1 arg1, type2 arg2, type3 arg3, type4 arg4,        \
          type5 arg5, type6 arg6) {                              \
         int status;                                             \
         register type1 rdi asm("rdi");                          \
@@ -155,17 +153,14 @@ int name(type1 arg1, type2 arg2, type3 arg3, type4 arg4,        \
         r8  = arg5;                                             \
         r9  = arg6;                                             \
         asm volatile(                                           \
-                "syscall"                                       \
-                : "=a" (status)                                 \
-                : "0" (__NR_##name),                            \
-                  "r" (rdi),                                    \
-                  "r" (rsi),                                    \
-                  "r" (rdx),                                    \
-                  "r" (r10),                                    \
-                  "r" (r8),                                     \
-                  "r" (r9)                                      \
-                : "memory", "rcx", "r11", "cc"                  \
+                ".byte 0x0F\n\t"                                    \
+                ".byte 0x01\n\t"                                    \
+                ".byte 0xd7\n\t"                                    \
+		: "=c"(aep)					\
+                : "0"((uint32_t)ENCLU_EENTER),			\
+		  "b"(tcs),					\
+		  "c"(aep)					\
+                : "memory", "r11", "cc" 			\
         );                                                      \
-        return status;                                          \
 }
 
