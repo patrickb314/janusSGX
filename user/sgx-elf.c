@@ -15,10 +15,6 @@
 
 #include <gelf.h>
 
-/* Following macros taken from Kitten macros.h file */
-#define round_up(x,y) (((x) + (y) - 1) & ~((y)-1))
-#define round_down(x,y) ((x) & ~((y)-1))
-
 int elf_to_mmap_flags(int eflags)
 {
 	int r = PROT_NONE;

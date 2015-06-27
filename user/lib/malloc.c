@@ -10,13 +10,13 @@ int sgx_malloc_init(void *start, size_t len)
 	heap_limit = heap_top + len;
 }
 
-extern void *ENCD_END;
+extern void *_end;
 void *sgx_malloc(size_t len)
 {
 	char *newtop, *val;
 
 	if (heap_base == 0) {
-		char *top = (char *)&ENCD_END + STACK_PAGE_FRAMES*PAGE_SIZE;
+		char *top = (char *)round_up((unsigned long)&_end, PAGE_SIZE) + STACK_PAGE_FRAMES*PAGE_SIZE;
 		sgx_malloc_init(top, HEAP_PAGE_FRAMES*PAGE_SIZE);
         }
 

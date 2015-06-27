@@ -7,7 +7,7 @@ SSL_OBJS := polarssl/rsa.o polarssl/entropy.o polarssl/ctr_drbg.o \
 	polarssl/timing.o polarssl/md_wrap.o polarssl/sha256.o polarssl/md5.o \
 	polarssl/ripemd160.o polarssl/net.o polarssl/aes_cmac128.o
 
-LIBSGX_OBJS := lib/sgxlib_base.o lib/sgxlib_crypto.o lib/sgxlib_malloc.o
+LIBSGX_OBJS := lib/base.o lib/crypto.o lib/malloc.o
 SGX_START=sgx-entry.o
 LDLIBS=-lelf
 SGX_LDLIBS=-L. -lsgx -lsgxssl -lsgx
@@ -53,19 +53,19 @@ example1: example1.S
 	$(CC) -nostdlib $< -o $@ $(LDLIBS)
 
 test/%.sgx: test/%.o $(SGX_LIBS)
-	$(CC) $(CFLAGS) -nostartfiles -Wl,-T,sgx2.lds $< $(SGX_START) -o $@  $(SGX_LDLIBS)
+	$(CC) $(CFLAGS) -nostartfiles -Wl,-T,sgx.lds $< $(SGX_START) -o $@  $(SGX_LDLIBS)
 
 demo/%.sgx: demo/%.o $(SGX_OBJS) $(SSL_OBJS) $(SGX_LIBS)
-	$(CC) $(CFLAGS) -nostartfiles -Wl,-T,sgx2.lds $< $(SGX_START) -o $@  $(SGX_LDLIBS)
+	$(CC) $(CFLAGS) -nostartfiles -Wl,-T,sgx.lds $< $(SGX_START) -o $@  $(SGX_LDLIBS)
 
 bootstrap/%.o: bootstrap/%.c $(HDRS)
 	$(CC) -c $(CFLAGS) -o $@ $<
 
 bootstrap/launch-enclave.sgx: bootstrap/launch_enclave.o $(SGX_OBJS) $(SSL_OBJS) $(SGX_LIBS)
-	$(CC) $(CFLAGS) -nostartfiles -Wl,-T,sgx2.lds $< -o $@ $(SGX_START) $(SGX_LDLIBS)
+	$(CC) $(CFLAGS) -nostartfiles -Wl,-T,sgx.lds $< -o $@ $(SGX_START) $(SGX_LDLIBS)
 
 bootstrap-quote/quoting-enclave.sgx: bootstrap/quoting_enclave.o $(SGX_OBJS) $(SSL_OBJS) $(SGX_LIBS)
-	$(CC) $(CFLAGS) -nostartfiles -Wl,-T,sgx2.lds $< -o $@ $(SGX_START) $(SGX_LDLIBS)
+	$(CC) $(CFLAGS) -nostartfiles -Wl,-T,sgx.lds $< -o $@ $(SGX_START) $(SGX_LDLIBS)
 
 sgx-mmap-runtime: sgx-mmap-runtime.o $(SGX_OBJS) $(SSL_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS) -lelf

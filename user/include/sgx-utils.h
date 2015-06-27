@@ -15,3 +15,9 @@ extern einittoken_t *load_einittoken(char *conf);
 extern void hexdump(FILE *fp, void *addr, int len);
 extern void load_bytes_from_str(uint8_t *key, char *bytes, size_t size);
 extern int rop2(int val);
+
+/* Following macros taken with permission from
+ * from Kitten include/lwk/macros.h */
+#define round_up(x,y) (((x) + (y) - 1) & ~((y)-1))
+#define round_down(x,y) ((x) & ~((y)-1))
+
