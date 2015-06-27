@@ -1,3 +1,8 @@
+JanusSGX: A modification of OpenSGX for developing new enclave
+APIs.
+
+***
+
 OpenSGX: An open platform for Intel SGX
 =======================================
 
