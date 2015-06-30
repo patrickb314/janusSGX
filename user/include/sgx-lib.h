@@ -43,9 +43,7 @@ extern unsigned long heap_end;
 
 extern void _enclu(enclu_cmd_t leaf, uint64_t rbx, uint64_t rcx, uint64_t rdx,
            out_regs_t *out_regs);
-extern size_t sgx_strlen(const char *string);
-extern int sgx_strcmp (const char *str1, const char *str2);
-extern int sgx_memcmp (const void *ptr1, const void *ptr2, size_t num);
-extern void *sgx_memset (void *ptr, int value, size_t num);
-extern void *sgx_memcpy (void *dest, const void *src, size_t size);
-extern void sgx_cmac(unsigned char *key, unsigned char *input, size_t bytes, unsigned char *mac);
+extern void aes_cmac(unsigned char *key, unsigned char *input, size_t bytes, unsigned char *mac);
+extern void rsa_sign(unsigned char *key, unsigned char *input, size_t bytes, 
+              	    unsigned char *sig);
+

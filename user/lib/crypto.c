@@ -1,13 +1,24 @@
 #include <sgx-lib.h>
-#include <openssl/cmac.h>
 
-void sgx_cmac(unsigned char *key, unsigned char *input, size_t bytes, unsigned char *mac)
+void aes_cmac(unsigned char *key, unsigned char *input, size_t bytes, 
+	      unsigned char *mac)
 {
-    CMAC_CTX *ctx = CMAC_CTX_new();
-    int outbytes;
-    CMAC_Init(ctx, key, KEY_LENGTH, EVP_aes_128_cbc(), NULL);
-    CMAC_Update(ctx, input, bytes);
-    CMAC_Final(ctx, mac, &outbytes);
-    CMAC_CTX_free(ctx);
+    aes_cmac128_context ctx;
+    aes_cmac128_starts(&ctx, key);
+    aes_cmac128_update(&ctx, input, bytes);
+    aes_cmac128_final(&ctx, mac);
 }
 
+void rsa_sign(unsigned char *key, unsigned char *input, size_t bytes, 
+	      unsigned char *sig)
+{
+	unsigned char hash[HASH_SIZE];
+	rsa_context ctx;
+
+        rsa_init(&ctx, RSA_PKCS_V15, 0);
+        sha1((unsigned char *)input, bytes, hash);
+        rsa_pkcs1_sign(&ctx, NULL, NULL, RSA_PRIVATE,
+                       POLARSSL_MD_SHA1, HASH_SIZE, hash, sig);
+        rsa_free(&ctx);
+	return;
+}

@@ -6,6 +6,8 @@
 #include <sgx-utils.h>
 #include <sgx-signature.h>
 
+#undef PRINT_MEASURE
+
 #ifndef GET_UINT32_BE
 #define GET_UINT32_BE(n,b,i)                            \
 {                                                       \
@@ -112,7 +114,7 @@ void measure_chunk_page(void *measurement, void *page, uint64_t chunk_offset)
     sha256update((unsigned char *)tmp_update_field, measurement);
     g_update_counter++;
 
-#if 0
+#if defined(PRINT_MEASURE)
     {
         char hash[64+1];
         fmt_hash(measurement, hash);
@@ -128,7 +130,7 @@ void measure_chunk_page(void *measurement, void *page, uint64_t chunk_offset)
     sha256update((unsigned char *)(&cast_page[192]), measurement);
     g_update_counter += 4;
 
-#if 0
+#if defined(PRINT_MEASURE)
     {
         char hash[64+1];
         fmt_hash(measurement, hash);
@@ -156,7 +158,7 @@ void measure_page_add(void *measurement, void *page, secinfo_t *secinfo,
     sha256update((unsigned char *)tmp_update_field, measurement);
     g_update_counter++;
 
-#if 0
+#if defined(PRINT_MEASURE)
     {
         char hash[64+1];
         fmt_hash(measurement, hash);
@@ -188,7 +190,7 @@ void measure_enclave_create(void *measurement, uint32_t ssa_frame_size,
     sha256update((unsigned char *)tmp_update_field, measurement);
     g_update_counter++;
 
-#if 0
+#if defined(PRINT_MEASURE)
     {
         char hash[64+1];
         fmt_hash(measurement, hash);

@@ -1,0 +1,92 @@
+Current Todo:
+* Make a simple trampoline to set up a trusted stack and allow access to user
+  argments - DONE
+* Have the trampoline set up the trusted stack using the syscall calling
+  convention. syscall already includes a stack switch and a way of getting 
+  arguments from the host. We want mechanisms like copyin/copyout anyway, too.
+  - DONE
+* Make it possible to load PIC-compiled enclaves. This is needed 
+  to do any kind of real remote attestation, but it's hard because of
+  linker relocations.  - DONE
+* Create a simple launch enclave that signs init tokens where the inittoken
+  is passed in as argument 1.  - DONE
+- Create a second enclave that does local attestation correctly with another
+  enclave in the same user program.
+- Get more of PolarSSL running
+   * AES CMAC for launch token generation - DONE
+   - RSA for quoting enclave signing - SOON
+   - An entropy source in enclaves (probably implement RDRAND in
+     qemu using /dev/urandom) - DEFERED
+   - SSL/TLS communication primitives from enclaves - DEFERED
+- Get an actualy quoting enclave running
+- Get a buffer for output from enclaves that can support the equivalent of 
+  printf
+- Set up a high-speed communication channel out of the enclave
+
+***
+
+Longer-term issues:
+   * How do you protect the stack, keeping the untrusted code from finding 
+     a code path that leads to a stack overflow? Done right so that the stack
+     covers part of the SSA, you could then force an AEX and a resume and 
+     you could corrupt enclave state, right? Having to prove or continually 
+     guard against stack overflow is potentially expensive?
+   * How much actual sense of time will we have or need in the enclave?
+     On real hardware, it's not clear we'll actually get rdtsc, which 
+     leaves us only relative time as the host lets us run or whatever we 
+     can glean from secure and trusted communication with the outside
+     world.
+
+****
+
+Information on the original GT simulator:
+   * The original GATech SGX user code does not define a seperate stack
+     and relies on the EENTER setting the stack to a fixed location near 
+     the enclave SSA. The hardware doesn't actually do that, so it's not 
+     architecturally correct. 
+   * The GATech SGX user doesn't define a proper calling convention between the 
+     untrusted and trusted code on enclave entry. They rely on a 
+     trampoline back to the user on entry to move arguments through their 
+     send/recv trampoline mechanism.
+   * The GATech user code doesn't have a way of running multiple enclaves -
+     they hard load one defined by fixed linker sections, and assume it is 
+     already signed by a launch key through an external mechanism. 
+   * The Gatech code doesn't have any actual system call/BIOS suppport. They 
+     don't do a ring check on ENCLS, and have the user code call 
+     ECREATE/EADD/EINIT instead of having the kernel do this. It is done 
+     through a (somewhat hackish sys_create_enclave() call they have in a 
+     library.) 
+   * The GATech trampoline uses a single stack per TCS, so an AEX/enter
+     (which untrusted code could arrange) could potentially stomp on
+     other stack data. It also places the SSA at a location that
+     makes it hard to find the right location of the stack and will
+     break with multiple TCSes.
+   * THe GATech simulator changed EEXIT behavior to do an AEX save on
+     EEXIT(ptr != 0), which can be resumed later. This makes EEXIT 
+     directly a coroutine call, instead of doing this through a 
+     trampoline and a separate resume TCS entry or something similar.
+     YOu have to use EEXIT(null) and rely on the simulator eexit EIP
+     saving to approximate standard EEXIT behavior. (Otherwise, EENTER
+     will eventually fail when you run out of SSA entries.)
+
+Launch Enclave Design - DONE (except for inittoken consistency checks):
+* User-space
+  * load and set the intel key.
+  * Initialize the launch enclave 
+  * Create the inittoken, call the launch enclave with the inittoken
+    as the address to get it signed
+  * Save the inittoken
+- Enclave space
+  * Argument 1, the inittoken. 
+  - Do a bunch of consistency checks on the inittoken - INCOMPLETE
+  * Call EGETKEY to get the launch key
+  * Compute the launch token MAC.
+  * Save the signature in the initkey
+  * return
+
+Location attestation test case:
+
+Quoting Enclave Design - :
+
+***
+

@@ -16,31 +16,24 @@ void enclave_main(einittoken_t *inittoken)
 	unsigned char mac[MAC_SIZE];
 	int i;
 
-	/* Double check validity of inittoken */
-	sgx_memset(inittoken->mac, -1, MAC_SIZE);
-
 	/* Only sign non-intel enclaves */
 	if (!inittoken->valid) {
-	        sgx_memset(inittoken->mac, 1, MAC_SIZE);
 		goto fail;
 	} 
 
 	for (i = 0; i < 44; i++) {
 		if (inittoken->reserved1[i] != 0) {
-	                sgx_memset(inittoken->mac, 2, MAC_SIZE);
 			goto fail;
 		} 
 	}
 
 	if (inittoken->attributes.reserved1 != 0) {
-	        sgx_memset(inittoken->mac, 3, MAC_SIZE);
 		goto fail;
 	}
 
 #if 0
 	/* Don't sign new launch enclaves */
 	if (inittoken->attributes.einittokenkey) {
-	        sgx_memset(inittoken->mac, 4, MAC_SIZE);
 		goto fail;
 	}
 
@@ -54,21 +47,23 @@ void enclave_main(einittoken_t *inittoken)
 	/* Get the launch key -
 	 * in the request, the attribute mask, cpusvn, isvsvn, and 
 	 * keyid come from the request! */
-	sgx_memset(&keyreq, 0, sizeof(keyreq));
+	memset(&keyreq, 0, sizeof(keyreq));
 	keyreq.keyname = LAUNCH_KEY;
-	sgx_memcpy(keyreq.cpusvn, &inittoken->cpuSvnLE, 16);
+	memcpy(keyreq.cpusvn, &inittoken->cpuSvnLE, 16);
 	keyreq.isvsvn = inittoken->isvsvnLE;
-	sgx_memcpy(&keyreq.keyid, &inittoken->keyid, 32);
+	memcpy(&keyreq.keyid, &inittoken->keyid, 32);
 	sgx_getkey(&keyreq, launch_key);
 
 	/* Only the first 192 bytes of hte structure are signed */
-	sgx_cmac(launch_key, (unsigned char *)inittoken, 192, mac);
-	sgx_memcpy(inittoken->mac, mac, MAC_SIZE);
+	cmac(launch_key, (unsigned char *)inittoken, 192, mac); 
+	memcpy(inittoken->mac, mac, MAC_SIZE);
 
+	/* Now we have to sign it! */
+	
 	/* And we're done. */
 	return;
 
     fail:
-	/*sgx_memset(inittoken->mac, 0, MAC_SIZE); */
+	memset(inittoken->mac, 0xff, MAC_SIZE);
 	return;
 }

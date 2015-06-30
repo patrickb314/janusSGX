@@ -14,6 +14,7 @@
 #include "polarssl/sha1.h"
 #include "polarssl/aes_cmac128.h"
 
+#undef PRINT_MEASURE
 static qeid_t qenclaves[MAX_ENCLAVES];
 
 /**
@@ -2902,7 +2903,7 @@ void sgx_ecreate(CPUX86State *env)
     // Increase enclave's MRENCLAVE update counter
     tmp_secs->mrEnclaveUpdateCounter++;
 
-/*
+#ifdef PRINT_MEASURE
     // Check MRENCLAVE after ECREATE
     {
         char hash[64+1];
@@ -2912,7 +2913,7 @@ void sgx_ecreate(CPUX86State *env)
 
         sgx_dbg(info, "measurement: %.20s.., counter: %ld", hash, counter);
     }
-*/
+#endif
 
     // Set SECS.EID : starts from 0
     tmp_secs->eid_reserved.eid_pad.eid = env->cregs.CR_NEXT_EID;
@@ -3141,7 +3142,7 @@ void sgx_eadd(CPUX86State *env)
     // INC enclave's MRENCLAVE update counter
     tmp_secs->mrEnclaveUpdateCounter++;
 
-/*
+#ifdef PRINT_MEASURE
     // Check MRENCLAVE after EADD
     {
         char hash[64+1];
@@ -3151,7 +3152,7 @@ void sgx_eadd(CPUX86State *env)
 
         sgx_dbg(info, "measurement: %.20s.., counter: %ld", hash, counter);
     }
-*/
+#endif
 
     // Set epcm entry
     set_epcm_entry(&epcm[index_page], 1, scratch_secinfo.flags.r,
@@ -3661,7 +3662,7 @@ void sgx_eextend(CPUX86State *env)
     // Increase MRENCLAVE update counter
     tmp_secs->mrEnclaveUpdateCounter++;
 
-/*
+#ifdef PRINT_MEASURE
     // Check MRENCLAVE for EEXTEND instruction
     {
         char hash[64+1];
@@ -3671,7 +3672,7 @@ void sgx_eextend(CPUX86State *env)
 
         sgx_dbg(info, "measurement: %.20s.., counter: %ld", hash, counter);
     }
-*/
+#endif
 
     // Add 256 bytes to MRENCLAVE, 64 byte at a time
     sha256update((unsigned char *)(&target_addr[0]), tmp_secs->mrEnclave);
@@ -3682,7 +3683,7 @@ void sgx_eextend(CPUX86State *env)
     // Increase enclaves's MRENCLAVE update counter by 4
     tmp_secs->mrEnclaveUpdateCounter += 4;
 
-/*
+#ifdef PRINT_MEASURE
     // Check MRENCLAVE for page chunk
     {
         char hash[64+1];
@@ -3692,7 +3693,7 @@ void sgx_eextend(CPUX86State *env)
 
         sgx_dbg(info, "measurement: %.20s.., counter: %ld", hash, counter);
     }
-*/
+#endif
 #if PERF
     int64_t eid;
     eid = tmp_secs->eid_reserved.eid_pad.eid;

@@ -22,7 +22,6 @@ int main(int argc, char **argv)
 	size_t npages;
 	int keid;
 	keid_t stat;
-	int j;
 
     	if (argc < 1) {
         	fprintf(stderr, "Please specify enclave binary to load\n");
@@ -47,10 +46,7 @@ int main(int argc, char **argv)
     	if (syscall_stat_enclave(keid, &stat) < 0)
         	err(1, "failed to stat enclave");
 
-    	fprintf(stdout, "a_val = %d.\n", a_val);
-    		enclave1_call(stat.tcs, exception_handler, &a_val);
-    		fprintf(stdout, "a_val = %d.\n", a_val);
+    	enclave1_call(stat.tcs, exception_handler, &a_val);
 
     	return 0;
 }
-

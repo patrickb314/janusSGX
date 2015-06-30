@@ -34,7 +34,7 @@ void _enclu(enclu_cmd_t leaf, uint64_t rbx, uint64_t rcx, uint64_t rdx,
     }
 }
 
-size_t sgx_strlen(const char *string) {
+size_t strlen(const char *string) {
     size_t len = 0;
     asm volatile("" ::: "memory");
     asm volatile("push  %%rdi\n\t"
@@ -54,7 +54,7 @@ size_t sgx_strlen(const char *string) {
     return len;
 }
 
-int sgx_strcmp (const char *str1, const char *str2)
+int strcmp (const char *str1, const char *str2)
 {
     int result = 0;
     asm volatile("" ::: "memory");
@@ -94,7 +94,7 @@ int sgx_strcmp (const char *str1, const char *str2)
     return result;
 }
 
-int sgx_memcmp (const void *ptr1, const void *ptr2, size_t num)
+int memcmp (const void *ptr1, const void *ptr2, size_t num)
 {
     int result = 0;
     asm volatile("" ::: "memory");
@@ -134,7 +134,7 @@ int sgx_memcmp (const void *ptr1, const void *ptr2, size_t num)
     return result;
 }
 
-void *sgx_memset (void *ptr, int value, size_t num)
+void *memset (void *ptr, int value, size_t num)
 {
     asm volatile("" ::: "memory");
     asm volatile("xor %%rax, %%rax\n\t"
@@ -154,7 +154,7 @@ void *sgx_memset (void *ptr, int value, size_t num)
     return ptr;
 }
 
-void *sgx_memcpy (void *dest, const void *src, size_t size)
+void *memcpy (void *dest, const void *src, size_t size)
 {
     asm volatile("" ::: "memory");
     asm volatile("movq %0, %%rdi\n\t"
