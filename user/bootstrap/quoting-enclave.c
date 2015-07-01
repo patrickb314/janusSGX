@@ -9,8 +9,8 @@
 
 /* Current hacks:
  * - The private key we use for quoting is hard-coded here, so not actually
- * secure (since the untrusted host can see in here. To give some mediocum of
- * security, what's actually hardcoded here is the Intel private key
+ * secure (since the untrusted host can see in here). To give some mediocum of
+ * security, what's actually hardcoded here is the "Intel" private key
  * encrypted with the platform launch key; only Intel-signed enclaves
  * running sealed up get access to that key. In that way, the host code
  * (which doesn't in theory have access to the launch key) can't simply 
@@ -19,9 +19,8 @@
 
 #include <sgx-lib.h>
 
-// #include <quoting-key.h> /* XXX generate this automatically */
-#define ENCRYPTED_QUOTING_KEY {0x1, 0x2, 0x3, 0x4}
-unsigned char crypt_quoting_key[] = ENCRYPTED_QUOTING_KEY;
+#include <quoting-key.h>
+unsigned char crypt_quoting_key[KEY_LENGTH] = ENCRYPTED_QUOTING_KEY;
 
 int decrypt_quoting_key(unsigned char *in, const unsigned char *key, 
 			unsigned char *out)
@@ -37,11 +36,6 @@ int decrypt_quoting_key(unsigned char *in, const unsigned char *key,
 	aes_free(&aes);
 	return 0;
 }
-
-typedef struct quote {
-	report_t report;
-	rsa_sig_t sig;
-} quote_t;
 
 int verify_report(report_t *report)
 {
@@ -72,8 +66,6 @@ int verify_report(report_t *report)
 void sign_quote(quote_t *q)
 {
 	keyrequest_t keyreq;
-	rsa_context rsa_ctx;
-	unsigned char hash[HASH_SIZE];
 
 	/* Some of these structures are large; do we need to worry about the
 	 * size of the stack? Using global variables is also dicey because
@@ -104,29 +96,37 @@ void enclave_main(report_t *report, quote_t *quote)
 	report_t *r = malloc(sizeof(report_t));
 	quote_t *q = malloc(sizeof(quote_t));
 
+	memset(&quote->sig, 0x1, sizeof(rsa_sig_t));
+
 	/* First, copy what we're working with to enclave memory
 	 * to avoid complications with the host racing with us 
 	 * to try and get odd results */
 	memcpy(r, report, sizeof(report_t));
 
+	memset(&quote->sig, 0x2, sizeof(rsa_sig_t));
 	/* Check that the report is actually locally. */
 	if (verify_report(report) != 0) {
 		goto fail;
 	}
 
+	memset(&quote->sig, 0x3, sizeof(rsa_sig_t));
 	/* Copy the report to the quote */
-	memcpy(&q->report, r, sizeof(r));
+	memcpy(&q->report, r, sizeof(report_t));
 
+	memset(&quote->sig, 0x4, sizeof(rsa_sig_t));
 	/* Now sign the quote */
 	sign_quote(q);
 
 	/* Copy the signed quote out */
+	memset(&quote->sig, 0x5, sizeof(rsa_sig_t));
 	memcpy(quote, q, sizeof(quote_t));
-	return;
 
-    fail:
+out:
 	free(q);
 	free(r);
-	memset(quote, 0xff, sizeof(*quote));
 	return;
+
+fail: 
+	memset(&quote, -1, sizeof(quote_t));
+	goto out;
 }

@@ -9,6 +9,8 @@ extern char *fmt_bytes(uint8_t *bytes, int size);
 extern unsigned char *load_measurement(char *conf);
 extern char *dump_sigstruct(sigstruct_t *s);
 extern char *dbg_dump_sigstruct(sigstruct_t *s);
+extern char *dbg_dump_targetinfo(targetinfo_t *t);
+extern char *dbg_dump_ereport(report_t *t);
 extern sigstruct_t *load_sigstruct(char *conf);
 extern char *dbg_dump_einittoken(einittoken_t *t);
 extern einittoken_t *load_einittoken(char *conf);

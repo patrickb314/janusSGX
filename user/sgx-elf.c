@@ -36,7 +36,6 @@ void *load_elf_enclave(char *filename, size_t *npages, void **entry)
 
 	*npages = 0;
 
-	fprintf(stderr, "Loading elf file %s.\n", filename);
 	/* Read an elf binary, mapping it into our memory for loading as
 	 * an enclave - it's a straight binary that cannot require relocation */
 
@@ -93,15 +92,13 @@ void *load_elf_enclave(char *filename, size_t *npages, void **entry)
 		fend  = round_up(phdr.p_vaddr + phdr.p_filesz, PAGE_SIZE);
 		mend = round_up(phdr.p_vaddr + phdr.p_memsz, PAGE_SIZE);
 		pflags = elf_to_mmap_flags(phdr.p_flags) | PROT_WRITE;
-		fprintf(stdout, "Loading ELF region [start=%lx, vaddr=%lx, fend=%lx, end=%lx)\n",
-			start, phdr.p_vaddr, fdataend, mend);
 		
 		/* First, get a zeroed memory range for all the memory we 
 		 * need. We do this to make sure we don't overlap with
 		 * other existing page ranges (like the EPC)  */
 		p = mmap((void *)start, mend-start, pflags, MAP_PRIVATE|MAP_ANONYMOUS, 
 			 -1, 0);
-		if (p != start) {
+		if (p != (void *) start) {
 			fprintf(stderr, "WARNING: Could not get enough memory "
 				"at addr %p for segment.\n", (void *)start); }
 		/* Now remap the file into the part of the mapping we just
@@ -112,12 +109,11 @@ void *load_elf_enclave(char *filename, size_t *npages, void **entry)
 			perror("mmap");
 			return NULL;
 		}
-		if (p != start)
 		if (start < phdr.p_vaddr) {
 			memset((void *)p, 0, start - phdr.p_vaddr);
 		}
 		if (fend > fdataend) {
-			memset((void *)p + (fdataend - start), 0, 
+			memset((char *)p + (fdataend - start), 0, 
 			       fend - fdataend);
 		}
 		/* We should really make this return a list of ranges */

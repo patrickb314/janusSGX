@@ -328,6 +328,142 @@ Q2            : %s..",
     return msg;
 }
 
+char *dbg_dump_ereport(report_t *r)
+{
+    char *msg = malloc(2048);
+    if (!msg)
+        return NULL;
+
+    char *cpusvn        = fmt_bytes(swap_endian(r->cpusvn, 16), 16);
+    char *mselect_rsv2  = fmt_bytes(r->miscselect.reserved2, 3);
+    char *rsv1          = fmt_bytes(r->reserved, 28);
+    char *attr_rsv4     = fmt_bytes(r->attributes.reserved4, 7);
+    char *attr_xfrm     = fmt_bytes(swap_endian((unsigned char *)&r->attributes.xfrm, 8), 8);
+    char *mrenclave     = fmt_bytes(r->mrenclave, 32);
+    char *rsv2          = fmt_bytes(r->reserved2, 32);
+    char *mrsigner      = fmt_bytes(r->mrsigner, 32);
+    char *rsv3          = fmt_bytes(r->reserved3, 96);
+    char *prodid        = fmt_bytes(swap_endian((unsigned char *)&r->isvProdID, 2), 2);
+    char *svn           = fmt_bytes(swap_endian((unsigned char *)&r->isvsvn, 2), 2);
+    char *rsv4          = fmt_bytes(r->reserved4, 60);
+    char *reportdata    = fmt_bytes(r->reportData, 64);
+    char *keyid         = fmt_bytes(swap_endian(r->keyid, 32), 32);
+    char *mac           = fmt_bytes(r->mac, 16);
+    
+    snprintf(msg, 2048,"\
+CPUSVN            : %s\n\
+MISCSELECT\n\
+.EXINFO           : %d\n\
+.RESERVED         : %d%s\n\
+RESERVED1         : %s\n\
+ATTRIBUTES\n\
+.RESERVED1        : %d\n\
+.DEBUG            : %d\n\
+.MODE64BIT        : %d\n\
+.RESERVED2        : %d\n\
+.PROVISIONKEY     : %d\n\
+.EINITTOKENKEY    : %d\n\
+.RESERVED3        : %d%s\n\
+.XFRM             : %s\n\
+MRENCLAVE         : %s\n\
+RESERVED2         : %s\n\
+MRSIGNER          : %s\n\
+RESERVED3         : %s\n\
+ISVPRODID         : %s\n\
+ISVSVN            : %s\n\
+RESERVED4         : %s\n\
+REPORTDATA:       : %s\n\
+KEYID             : %s\n\
+MAC               : %s",
+            cpusvn,
+            r->miscselect.exinfo,
+            r->miscselect.reserved1, mselect_rsv2,
+            rsv1,
+            r->attributes.reserved1,
+            r->attributes.debug,
+            r->attributes.mode64bit,
+            r->attributes.reserved2,
+            r->attributes.provisionkey,
+            r->attributes.einittokenkey,
+            r->attributes.reserved3, attr_rsv4,
+            attr_xfrm,
+            mrenclave,
+            rsv2,
+            mrsigner,
+            rsv3,
+	    prodid,
+	    svn,
+	    rsv4,
+	    reportdata,
+	    keyid,
+	    mac);
+    
+    free(cpusvn);
+    free(mselect_rsv2);
+    free(rsv1);
+    free(attr_rsv4);
+    free(attr_xfrm);
+    free(mrenclave);
+    free(rsv2);
+    free(mrsigner);
+    free(rsv3);
+    free(prodid);
+    free(svn);
+    free(rsv4);
+    free(keyid);
+    free(mac);
+
+    return msg;
+    return msg;
+}
+char *dbg_dump_targetinfo(targetinfo_t *t)
+{
+    char *mrenclave     = fmt_bytes(t->measurement, 32);
+    char *attrs_rsv4    = fmt_bytes(t->attributes.reserved4, 7);
+    char *attrs_xfrm    = fmt_bytes(swap_endian((unsigned char *)&t->attributes.xfrm, 8), 8);
+    char *rsv1          = fmt_bytes(t->reserved1, 4);
+    char *mselect_rsv2  = fmt_bytes(t->miscselect.reserved2, 3);
+    char *rsv2          = fmt_bytes(t->reserved2, 456);
+
+    char *msg = malloc(2048);
+    snprintf(msg, 2048,"\
+MRENCLAVE     : %s\n\
+ATTRIBUTES\n\
+.RESERVED1    : %d\n\
+.DEBUG        : %d\n\
+.MODE64BIT    : %d\n\
+.RESERVED2    : %d\n\
+.PROVISIONKEY : %d\n\
+.EINITTOKENKEY: %d\n\
+.RESERVED3    : %d%s\n\
+.XFRM         : %s\n\
+RESERVED1     : %s..\n\
+MISCSELECT\n\
+.EXINFO       : %d\n\
+.RESERVED     : %d%s\n\
+RESERVED2     : %s..",
+            mrenclave,
+            t->attributes.reserved1,
+            t->attributes.debug,
+            t->attributes.mode64bit,
+            t->attributes.reserved2,
+            t->attributes.provisionkey,
+            t->attributes.einittokenkey,
+            t->attributes.reserved3, attrs_rsv4,
+            attrs_xfrm,
+            rsv1,
+            t->miscselect.exinfo,
+            t->miscselect.reserved1, mselect_rsv2,
+            rsv2);
+	free(mrenclave);
+	free(attrs_xfrm);
+	free(attrs_rsv4);
+	free(rsv1);
+	free(mselect_rsv2);
+	free(rsv2);
+	return msg;
+}
+
 unsigned char *load_measurement(char *conf)
 {
 

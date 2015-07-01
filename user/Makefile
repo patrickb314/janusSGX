@@ -17,7 +17,8 @@ SGX_LDLIBS=-L. -lsgx -lsgxssl -lsgx
 CFLAGS := -g -Iinclude -Iopenssl/include -Wall -pedantic -Wno-unused-function -std=gnu11 -fno-stack-protector -static -fPIC -fvisibility=hidden
 ASFLAGS := -D__ASSEMBLY__ -Iinclude -Wall -fno-stack-protector -static -fPIC
 
-BOOTSTRAP_ENCS = bootstrap/launch-enclave.sgx bootstrap/quoting-enclave.sgx
+BOOTSTRAP_ENCS = bootstrap/launch-enclave.sgx bootstrap/quoting-enclave.sgx \
+		 bootstrap/attesting-enclave.sgx
 
 SSL_CRYPTO_OBJS := lib/polarssl/aes.o lib/polarssl/aesni.o  \
 	lib/polarssl/aes_cmac128.o lib/polarssl/bignum.o \
@@ -30,7 +31,7 @@ LIBSGX_OBJS := $(patsubst %.c,%.o,$(wildcard lib/*.c)) $(SSL_CRYPTO_OBJS)
 HDRS := $(wildcard include/sgx*.h)
 BINS := $(patsubst %.c,%.sgx,$(wildcard test/*.c)) \
         $(patsubst %.c,%.sgx,$(wildcard demo/*.c)) \
-	bootstrap-launch \
+	bootstrap-launch bootstrap-quote \
 	sgx-test
 ALL  := $(BINS) $(BOOTSTRAP_ENCS) sgx-tool
 
@@ -75,8 +76,14 @@ bootstrap/%.o: bootstrap/%.c $(HDRS)
 bootstrap-launch: bootstrap-launch.o $(SGX_OBJS) $(SSL_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS) -lelf
 
-bootstrap/%.sgx: bootstrap/%.o $(SGX_OBJS) $(SGX_LIBS)
+bootstrap-quote: bootstrap-quote.o $(SGX_OBJS) $(SSL_OBJS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS) -lelf
+
+bootstrap/%.sgx: bootstrap/%.o $(SGX_OBJS) $(SGX_LIBS) include/quoting-key.h
 	$(CC) $(CFLAGS) -nostdlib -Wl,-T,sgx.lds $< -o $@ $(SGX_START) $(SGX_LDLIBS) -lgcc
+
+include/quoting-key.h: sgx-tool
+	./sgx-tool -Q conf/intel.key -K conf/device.key > $@
 
 bootstrap-quote/quoting-enclave.sgx: bootstrap/quoting-enclave.o $(SGX_OBJS) $(SGX_LIBS)
 	$(CC) $(CFLAGS) -nostartfiles -Wl,-T,sgx.lds $< -o $@ $(SGX_START) $(SGX_LDLIBS)

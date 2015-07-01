@@ -70,6 +70,12 @@ typedef struct {
     qstat_t qstat;
 } keid_t;
 
+// Defien a quote structure to use for a hypothetical cloaking enclave.
+typedef struct quote {
+        report_t report;
+        rsa_sig_t sig;
+} quote_t;
+
 // user-level libs
 extern void enclu(enclu_cmd_t leaf, uint64_t rbx, uint64_t rcx, uint64_t rdx,
                   out_regs_t* out_regs);
