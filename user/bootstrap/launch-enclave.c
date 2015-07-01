@@ -55,7 +55,7 @@ void enclave_main(einittoken_t *inittoken)
 	sgx_getkey(&keyreq, launch_key);
 
 	/* Only the first 192 bytes of hte structure are signed */
-	cmac(launch_key, (unsigned char *)inittoken, 192, mac); 
+	aes_cmac(launch_key, (unsigned char *)inittoken, 192, mac); 
 	memcpy(inittoken->mac, mac, MAC_SIZE);
 
 	/* Now we have to sign it! */

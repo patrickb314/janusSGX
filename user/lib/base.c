@@ -94,6 +94,23 @@ int strcmp (const char *str1, const char *str2)
     return result;
 }
 
+unsigned char tolower(unsigned char c)
+{
+	if (c >= 'A' && c <= 'Z')
+		return c + ('a' - 'A');
+	else
+		return c;
+}
+
+int strcasecmp(const char *str1, const char *str2)
+{
+ 	char *s1 = str1, *s2 = str2;
+	while (tolower(*s1) == tolower(*s2))
+		if (*s1++ || !*s2++)
+			return 0;
+	return tolower(*s1) - tolower(*s2);
+}
+
 int memcmp (const void *ptr1, const void *ptr2, size_t num)
 {
     int result = 0;

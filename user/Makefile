@@ -1,4 +1,4 @@
-SGX_LIBS := sgx-entry.o libsgx.a libsgxssl.a
+SGX_LIBS := sgx-entry.o libsgx.a
 SGX_RUNTIME := sgx-runtime.o sgx-test-runtime.o
 SGX_OBJS := sgx-user.o sgx-elf.o sgx-kern.o sgx-kern-epc.o sgx-utils.o sgx-signature.o 
 SSL_OBJS := polarssl/rsa.o polarssl/entropy.o polarssl/ctr_drbg.o \
@@ -6,12 +6,6 @@ SSL_OBJS := polarssl/rsa.o polarssl/entropy.o polarssl/ctr_drbg.o \
 	polarssl/sha512.o polarssl/aes.o polarssl/entropy_poll.o polarssl/aesni.o \
 	polarssl/timing.o polarssl/md_wrap.o polarssl/sha256.o polarssl/md5.o \
 	polarssl/ripemd160.o polarssl/net.o polarssl/aes_cmac128.o
-SSL_CRYPTO_OBJS := lib/polarssl/aes.o lib/polarssl/aesni.o  \
-	lib/polarssl/aes_cmac128.o lib/polarssl/bignum.o \
-	lib/polarssl/rsa.o lib/polarssl/md.o lib/polarssl/md_wrap.o\
-	lib/polarssl/sha1.o lib/polarssl/md5.o lib/polarssl/sha256.o \
-	lib/polarssl/sha512.o \
-	lib/polarssl/oid.o lib/polarssl/asn1parse.o 
 #  lib/polarssl/entropy.o lib/polarssl/ctr_drbg.o \
 # 	lib/polarssl/sha512.o lib/polarssl/entropy_poll.o \
 # 	lib/polarssl/timing.o lib/polarssl/md_wrap.o lib/polarssl/sha256.o lib/polarssl/md5.o \
@@ -25,12 +19,19 @@ ASFLAGS := -D__ASSEMBLY__ -Iinclude -Wall -fno-stack-protector -static -fPIC
 
 BOOTSTRAP_ENCS = bootstrap/launch-enclave.sgx bootstrap/quoting-enclave.sgx
 
+SSL_CRYPTO_OBJS := lib/polarssl/aes.o lib/polarssl/aesni.o  \
+	lib/polarssl/aes_cmac128.o lib/polarssl/bignum.o \
+	lib/polarssl/rsa.o lib/polarssl/md.o lib/polarssl/md_wrap.o\
+	lib/polarssl/sha1.o lib/polarssl/md5.o lib/polarssl/sha256.o \
+	lib/polarssl/sha512.o \
+	lib/polarssl/oid.o lib/polarssl/asn1parse.o 
+LIBSGX_OBJS := $(patsubst %.c,%.o,$(wildcard lib/*.c)) $(SSL_CRYPTO_OBJS)
+
 HDRS := $(wildcard include/sgx*.h)
 BINS := $(patsubst %.c,%.sgx,$(wildcard test/*.c)) \
         $(patsubst %.c,%.sgx,$(wildcard demo/*.c)) \
 	bootstrap-launch \
 	sgx-test
-LIBSGX_OBJS := $(patsubst %.c,%.o,$(wildcard lib/*.c))
 ALL  := $(BINS) $(BOOTSTRAP_ENCS) sgx-tool
 
 all: $(ALL)
@@ -65,7 +66,7 @@ example1: example1.S
 test/%.sgx: test/%.o $(SGX_LIBS)
 	$(CC) $(CFLAGS) -nostdlib -Wl,-T,sgx.lds $< $(SGX_START) -o $@  $(SGX_LDLIBS) -lgcc
 
-demo/%.sgx: demo/%.o $(SGX_OBJS) $(SSL_OBJS) $(SGX_LIBS)
+demo/%.sgx: demo/%.o $(SGX_OBJS) $(SGX_LIBS)
 	$(CC) $(CFLAGS) -nostdlib -Wl,-T,sgx.lds $< $(SGX_START) -o $@  $(SGX_LDLIBS) -lgcc
 
 bootstrap/%.o: bootstrap/%.c $(HDRS)
@@ -74,10 +75,10 @@ bootstrap/%.o: bootstrap/%.c $(HDRS)
 bootstrap-launch: bootstrap-launch.o $(SGX_OBJS) $(SSL_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS) -lelf
 
-bootstrap/%.sgx: bootstrap/%.o $(SGX_OBJS) $(SSL_CRYPTO_OBJS) $(SGX_LIBS)
-	$(CC) $(CFLAGS) -nostdlib -Wl,-T,sgx.lds $< -o $@ $(SGX_START) $(SSL_CRYPTO_OBJS) $(SGX_LDLIBS) -lgcc
+bootstrap/%.sgx: bootstrap/%.o $(SGX_OBJS) $(SGX_LIBS)
+	$(CC) $(CFLAGS) -nostdlib -Wl,-T,sgx.lds $< -o $@ $(SGX_START) $(SGX_LDLIBS) -lgcc
 
-bootstrap-quote/quoting-enclave.sgx: bootstrap/quoting-enclave.o $(SGX_OBJS) $(SSL_OBJS) $(SGX_LIBS)
+bootstrap-quote/quoting-enclave.sgx: bootstrap/quoting-enclave.o $(SGX_OBJS) $(SGX_LIBS)
 	$(CC) $(CFLAGS) -nostartfiles -Wl,-T,sgx.lds $< -o $@ $(SGX_START) $(SGX_LDLIBS)
 
 clean: 

@@ -36,6 +36,7 @@ void *load_elf_enclave(char *filename, size_t *npages, void **entry)
 
 	*npages = 0;
 
+	fprintf(stderr, "Loading elf file %s.\n", filename);
 	/* Read an elf binary, mapping it into our memory for loading as
 	 * an enclave - it's a straight binary that cannot require relocation */
 
@@ -94,41 +95,35 @@ void *load_elf_enclave(char *filename, size_t *npages, void **entry)
 		pflags = elf_to_mmap_flags(phdr.p_flags) | PROT_WRITE;
 		fprintf(stdout, "Loading ELF region [start=%lx, vaddr=%lx, fend=%lx, end=%lx)\n",
 			start, phdr.p_vaddr, fdataend, mend);
-		p = mmap((void *)start, fend-start, pflags, MAP_PRIVATE|MAP_FIXED, 
+		
+		/* First, get a zeroed memory range for all the memory we 
+		 * need. We do this to make sure we don't overlap with
+		 * other existing page ranges (like the EPC)  */
+		p = mmap((void *)start, mend-start, pflags, MAP_PRIVATE|MAP_ANONYMOUS, 
+			 -1, 0);
+		if (p != start) {
+			fprintf(stderr, "WARNING: Could not get enough memory "
+				"at addr %p for segment.\n", (void *)start); }
+		/* Now remap the file into the part of the mapping we just
+		 * made that should come from the file */
+		p = mmap(p, fend-start, pflags, MAP_PRIVATE|MAP_FIXED, 
 			 fd, round_down(phdr.p_offset, PAGE_SIZE));
 		if (!p) {
 			perror("mmap");
 			return NULL;
-		} 
-		if (p != start) {
-			fprintf(stderr, "mmap returned allocation add address %p, not %lx as requested.\n",
-				p, start);
 		}
+		if (p != start)
 		if (start < phdr.p_vaddr) {
-			memset((void *)start, 0, start - phdr.p_vaddr);
+			memset((void *)p, 0, start - phdr.p_vaddr);
 		}
 		if (fend > fdataend) {
-			memset((void *)fdataend, 0, fend - fdataend);
+			memset((void *)p + (fdataend - start), 0, 
+			       fend - fdataend);
 		}
+		/* We should really make this return a list of ranges */
 		if (p < addr) {
 			addr = p;
-			*npages += (fend-start)/PAGE_SIZE;
-		}
-
-		if (mend > fend) {
-			p = mmap((void *)fend, mend-fend, pflags, 
-				 MAP_PRIVATE|MAP_FIXED|MAP_ANONYMOUS,
-				 -1, 0); 
-			if (!p) {
-				perror("mmap");
-				return NULL;
-			}
-			if (p != fend) {
-				fprintf(stderr, "mmap returned allocation add address %p, not %lx as requested.\n",
-						 p, start);
-				return NULL;
-			}
-			*npages += (mend-fend)/PAGE_SIZE;
+			*npages += (mend-start)/PAGE_SIZE;
 		}
 	}
 	if (addr != (void *)-1UL)
