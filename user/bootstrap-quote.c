@@ -78,7 +78,6 @@ int main(int argc, char **argv)
 		fprintf(stdout, "Created test enclave.\n"); fflush(stdout);
 	}
 
-	
 	quote_tcs = create_elf_enclave(quoteenc, quoteconf);
 	if (!quote_tcs) {
 		fprintf(stdout, "Unable to create quoting enclave.\n"); 
@@ -111,7 +110,7 @@ int main(int argc, char **argv)
 
 	/* And print out the results */
 	rep = dbg_dump_ereport(&q.report);
-	char *sig = fmt_bytes(&q.sig, sizeof(rsa_sig_t));
+	char *sig = fmt_bytes(q.sig, sizeof(rsa_sig_t));
 	fprintf(stdout, "Quoted report from test enclave: %s\n", 
 		rep);
 	fprintf(stdout, "RSA SIGNATURE:       %s\n", sig);

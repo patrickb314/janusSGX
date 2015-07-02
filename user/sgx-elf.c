@@ -99,8 +99,10 @@ void *load_elf_enclave(char *filename, size_t *npages, void **entry)
 		p = mmap((void *)start, mend-start, pflags, MAP_PRIVATE|MAP_ANONYMOUS, 
 			 -1, 0);
 		if (p != (void *) start) {
-			fprintf(stderr, "WARNING: Could not get enough memory "
-				"at addr %p for segment.\n", (void *)start); }
+			fprintf(stderr, "WARNING: Could not get memory "
+				"at addr %p for segment.\n", (void *)start); 
+			*entry = (void *)(ehdr.e_entry + (unsigned long)p - start);
+		}
 		/* Now remap the file into the part of the mapping we just
 		 * made that should come from the file */
 		p = mmap(p, fend-start, pflags, MAP_PRIVATE|MAP_FIXED, 
@@ -122,9 +124,10 @@ void *load_elf_enclave(char *filename, size_t *npages, void **entry)
 			*npages += (mend-start)/PAGE_SIZE;
 		}
 	}
-	if (addr != (void *)-1UL)
+	if (addr != (void *)-1UL) {
 		return addr;
-	else 
+	} else  {
 		return NULL;
+	}
 }
 	

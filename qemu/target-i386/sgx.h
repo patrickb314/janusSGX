@@ -367,7 +367,7 @@ typedef struct {
     uint16_t     isvProdID;             //!< Enclave Product ID
     uint16_t     isvsvn;                //!< Security Version Number of the Enclave
     uint8_t      reserved4[60];         //!< 0
-    uint8_t      reportData[64];        //!< Set of Data used for communication between the enclave and the target enclave. Provided by EREPORT in RCX (out)
+    uint8_t      reportData[64];        //!< Set of Data used for communication between the enclave and the target enclave. Provided to EREPORT in RCX (out)
     uint8_t      keyid[32];             //!< Value for key wear-out protection
     uint8_t      mac[16];               //!< CMAC on the report using report key
 } report_t;
