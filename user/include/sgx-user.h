@@ -44,7 +44,8 @@ void name(tcs_t *tcs, void (*aep)(), type1 arg1) {              \
 		: "=c"(aep)					\
                 : "a"((uint32_t)ENCLU_EENTER),			\
 		  "b"(tcs),					\
-		  "c"(aep)					\
+		  "c"(aep),					\
+		  "r"(rdi)					\
                 : "memory", "r11", "cc" 			\
         );                                                      \
 }
@@ -62,7 +63,9 @@ void name(tcs_t *tcs, void (*aep)(), type1 arg1, type2 arg2) {  \
 		: "=c"(aep)					\
                 : "a"((uint32_t)ENCLU_EENTER),			\
 		  "b"(tcs),					\
-		  "c"(aep)					\
+		  "c"(aep),					\
+		  "r"(rdi),					\
+		  "r"(rsi)					\
                 : "memory", "r11", "cc" 			\
         );                                                      \
 }
@@ -70,20 +73,23 @@ void name(tcs_t *tcs, void (*aep)(), type1 arg1, type2 arg2) {  \
 #define ENCCALL3(name, type1, type2, type3)                     \
 void name(tcs_t *tcs, void (*aep)(), type1 arg1, type2 arg2, 	\
 	 type3 arg3) {                  			\
-        register type1 rdi asm("rdi") __attribute((unused));                          \
-        register type2 rsi asm("rsi") __attribute((unused));                          \
-        register type3 rdx asm("rdx") __attribute((unused));                          \
+        register type1 rdi asm("rdi");    \
+        register type2 rsi asm("rsi");    \
+        register type3 rdx asm("rdx");    \
         rdi = arg1;                                             \
         rsi = arg2;                                             \
         rdx = arg3;              				\
         asm volatile(                                           \
-                ".byte 0x0F\n\t"                                    \
-                ".byte 0x01\n\t"                                    \
-                ".byte 0xd7\n\t"                                    \
+                ".byte 0x0F\n\t"                                \
+                ".byte 0x01\n\t"                                \
+                ".byte 0xd7\n\t"                                \
 		: "=c"(aep)					\
                 : "a"((uint32_t)ENCLU_EENTER),			\
 		  "b"(tcs),					\
-		  "c"(aep)					\
+		  "c"(aep),					\
+		  "r"(rdi),					\
+		  "r"(rsi),					\
+		  "r"(rdx)					\
                 : "memory", "r11", "cc" 			\
         );                                                      \
 }
@@ -106,7 +112,11 @@ void name(tcs_t tcs, void (*aep)(), type1 arg1, type2 arg2, type3 arg3, type4 ar
 		: "=c"(aep)					\
                 : "a"((uint32_t)ENCLU_EENTER),			\
 		  "b"(tcs),					\
-		  "c"(aep)					\
+		  "c"(aep),					\
+		  "r"(rdi),					\
+		  "r"(rsi),					\
+		  "r"(rdx),					\
+		  "r"(r10)					\
                 : "memory", "r11", "cc" 			\
         );                                                      \
 }
@@ -131,7 +141,12 @@ void name(tcs_t *tcs, void (*aep)(), type1 arg1, type2 arg2, type3 arg3, type4 a
 		: "=c"(aep)					\
                 : "a"((uint32_t)ENCLU_EENTER),			\
 		  "b"(tcs),					\
-		  "c"(aep)					\
+		  "c"(aep),					\
+		  "r"(rdi),					\
+		  "r"(rsi),					\
+		  "r"(rdx),					\
+		  "r"(r10),					\
+		  "r"(r8)					\
                 : "memory", "r11", "cc" 			\
         );                                                      \
 }
@@ -159,7 +174,13 @@ void name(tcs_t *tcs, void (*aep)(), type1 arg1, type2 arg2, type3 arg3, type4 a
 		: "=c"(aep)					\
                 : "a"((uint32_t)ENCLU_EENTER),			\
 		  "b"(tcs),					\
-		  "c"(aep)					\
+		  "c"(aep),					\
+		  "r"(rdi),					\
+		  "r"(rsi),					\
+		  "r"(rdx),					\
+		  "r"(r10),					\
+		  "r"(r8),					\
+		  "r"(r9)					\
                 : "memory", "r11", "cc" 			\
         );                                                      \
 }

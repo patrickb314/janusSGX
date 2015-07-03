@@ -26,7 +26,7 @@ run_enclave() {
   NAME="${BASENAME%.*}"
   EXE=$BASEDIR/$NAME.sgx
 
-  $SGX $EXE $1
+  $SGX $EXE $@
 }
 
 measure() {

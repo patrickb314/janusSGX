@@ -16,7 +16,7 @@ void *malloc(size_t len)
 	char *newtop, *val;
 
 	if (heap_base == 0) {
-		char *top = (char *)round_up((unsigned long)&_end, PAGE_SIZE) + STACK_PAGE_FRAMES*PAGE_SIZE;
+		char *top = (char *)round_up((unsigned long)&_end, PAGE_SIZE) + STACK_PAGE_FRAMES_PER_THREAD*PAGE_SIZE; /* XXX This needs fixing once SSA/TCA setup is fixed. */
 		_malloc_init(top, HEAP_PAGE_FRAMES*PAGE_SIZE);
         }
 

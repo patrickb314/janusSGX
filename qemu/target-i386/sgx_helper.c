@@ -1946,9 +1946,9 @@ void sgx_egetkey(CPUX86State *env)
             keydep.isvprodID = 0;
             keydep.isvsvn    = 0;
             memcpy(keydep.ownerEpoch,      env->cregs.CSR_SGX_OWNEREPOCH,  16);
-            //memcpy(&keydep.attributes,     &tmp_currentsecs->attributes,   16);
+            memcpy(&keydep.attributes,     &tmp_currentsecs->attributes,   16);
             memset(&keydep.attributesMask, 0,                              16);
-            //memcpy(keydep.mrEnclave,       tmp_currentsecs->mrEnclave,     32);
+            memcpy(keydep.mrEnclave,       tmp_currentsecs->mrEnclave,     32);
             memset(keydep.mrSigner,        0,                              32);
             memcpy(keydep.keyid,           keyrequest->keyid,              32);
             memcpy(keydep.seal_key_fuses,  env->cregs.CR_SEAL_FUSES,       16);

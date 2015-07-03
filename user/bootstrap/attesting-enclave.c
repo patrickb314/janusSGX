@@ -10,6 +10,9 @@ void enclave_main(targetinfo_t *dest_enc, unsigned char *nonce,
 	unsigned char n[64];
 	report_t r;
 
+	memset(report, 2, sizeof(report_t));
+	memset(&r, -1, sizeof(report_t));
+
 	/* Copy arguments from user space into enclave space. 
 	 * EREPORT requires that all arguments be in this enclave. */
 	memcpy(&t, dest_enc, sizeof(targetinfo_t));

@@ -85,7 +85,7 @@ void sign_quote(quote_t *q)
 	/* Decrypt the quoting key and sign. */
 	decrypt_quoting_key(crypt_quoting_key, launch_key, quoting_key);
 	rsa_sign(quoting_key, (unsigned char *)&q->report, 384,
-		 (unsigned char *)&q->sig);
+		 (unsigned char *)q->sig);
 	
 	return;
 }
@@ -93,39 +93,36 @@ void sign_quote(quote_t *q)
 void enclave_main(report_t *report, quote_t *quote)
 {
 
-	report_t *r = malloc(sizeof(report_t));
-	quote_t *q = malloc(sizeof(quote_t));
+	report_t *r; 
+	quote_t *q;
 
-	memset(&quote->sig, 0x1, sizeof(rsa_sig_t));
+	r = malloc(sizeof(report_t));
+	q = malloc(sizeof(quote_t));
+	
+	memset(quote->sig, 0x1, sizeof(rsa_sig_t));
 
 	/* First, copy what we're working with to enclave memory
 	 * to avoid complications with the host racing with us 
 	 * to try and get odd results */
 	memcpy(r, report, sizeof(report_t));
 
-	memset(&quote->sig, 0x2, sizeof(rsa_sig_t));
 	/* Check that the report is actually locally. */
 	if (verify_report(report) != 0) {
 		goto fail;
 	}
 
-	memset(&quote->sig, 0x3, sizeof(rsa_sig_t));
 	/* Copy the report to the quote */
 	memcpy(&q->report, r, sizeof(report_t));
 
-	memset(&quote->sig, 0x4, sizeof(rsa_sig_t));
 	/* Now sign the quote */
 	sign_quote(q);
 
 	/* Copy the signed quote out */
-	memset(&quote->sig, 0x5, sizeof(rsa_sig_t));
 	memcpy(quote, q, sizeof(quote_t));
-
 out:
 	free(q);
 	free(r);
 	return;
-
 fail: 
 	memset(&quote, -1, sizeof(quote_t));
 	goto out;

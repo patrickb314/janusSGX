@@ -69,15 +69,6 @@ int main(int argc, char **argv)
 	sys_sgx_init(intel_pubkey);
 	fprintf(stdout, "Inited SGX.\n"); fflush(stdout);
 
-	test_tcs = create_elf_enclave(testenc, testconf);
-	if (!test_tcs) {
-		fprintf(stdout, "Unable to create test enclave.\n"); 
-		fflush(stdout);
-		exit(-1);
-	} else {
-		fprintf(stdout, "Created test enclave.\n"); fflush(stdout);
-	}
-
 	quote_tcs = create_elf_enclave(quoteenc, quoteconf);
 	if (!quote_tcs) {
 		fprintf(stdout, "Unable to create quoting enclave.\n"); 
@@ -85,6 +76,15 @@ int main(int argc, char **argv)
 		exit(-1);
 	} else {
 		fprintf(stdout, "Created quoting enclave.\n"); fflush(stdout);
+	}
+
+	test_tcs = create_elf_enclave(testenc, testconf);
+	if (!test_tcs) {
+		fprintf(stdout, "Unable to create test enclave.\n"); 
+		fflush(stdout);
+		exit(-1);
+	} else {
+		fprintf(stdout, "Created test enclave.\n"); fflush(stdout);
 	}
 
 	/* Now generate a targetinfo for the quoting enclave */
@@ -96,19 +96,18 @@ int main(int argc, char **argv)
 	t.attributes = quotesig->attributes;
 	t.miscselect = quotesig->miscselect;
 
+	memset(&r, 1, sizeof(report_t));
+
 	/* And get the report */
 	request_report(test_tcs, exception_handler,
 		       &t, nonce, &r);
-	char *rep = dbg_dump_ereport(&r);
-	fprintf(stdout, "Report from test enclave: %s\n", 
-		dbg_dump_ereport(&r));
-	free(rep);
 
 	/* Now get a quote from the report */
 	request_quote(quote_tcs, exception_handler,
 		      &r, &q);
 
 	/* And print out the results */
+	char *rep;
 	rep = dbg_dump_ereport(&q.report);
 	char *sig = fmt_bytes(q.sig, sizeof(rsa_sig_t));
 	fprintf(stdout, "Quoted report from test enclave: %s\n", 

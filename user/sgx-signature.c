@@ -378,15 +378,13 @@ void generate_einittoken_mac(einittoken_t *token, uint64_t le_tcs,
     asm("movl %0, %%eax\n\t"
         "movq %1, %%rbx\n\t"
         "movq %2, %%rcx\n\t"
-        "movq %3, %%rdx\n\t"
         ".byte 0x0F\n\t"
         ".byte 0x01\n\t"
         ".byte 0xd7\n\t"
         :
         :"a"((uint32_t)ENCLU_EENTER),
          "b"(le_tcs),
-         "c"(le_aep),
-         "d"((uint64_t)0));
+         "c"(le_aep));
 
     // XXX: seems need to do something before return
     //      otherwise will get segfault...
