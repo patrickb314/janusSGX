@@ -476,7 +476,7 @@ int encrypt_quoting_key(unsigned char *in, const unsigned char *key,
 
 	aes_init(&aes);
 	aes_setkey_enc(&aes, key, DEVICE_KEY_LENGTH_BITS);
-	aes_crypt_cbc(&aes, AES_ENCRYPT, KEY_LENGTH, iv, in, out);
+	aes_crypt_cbc(&aes, AES_ENCRYPT, 5*KEY_LENGTH, iv, in, out);
 	aes_free(&aes);
 	return 0;
 }
@@ -486,25 +486,27 @@ void cmd_quotekey(char *devkey, char *intelkey)
 	unsigned char device_pubkey[DEVICE_KEY_LENGTH],
 		      device_seckey[DEVICE_KEY_LENGTH],
 		      launch_key[DEVICE_KEY_LENGTH],
-	              intel_pubkey[KEY_LENGTH],
-		      intel_seckey[KEY_LENGTH],
-		      encrypted_key[KEY_LENGTH];
+	              intel_keyinfo[5*KEY_LENGTH],
+		      encrypted_keyinfo[KEY_LENGTH];
 	int i;
-
+	rsa_context *ctx;
     	load_rsa_keys(devkey, device_pubkey, device_seckey, 
 		      DEVICE_KEY_LENGTH_BITS);
-    	load_rsa_keys(intelkey, intel_pubkey, intel_seckey, 
-		      KEY_LENGTH_BITS);
+    	ctx = load_rsa_keys(intelkey, intel_keyinfo, intel_keyinfo+KEY_LENGTH, 
+		            KEY_LENGTH_BITS);
+	mpi_write_binary(&ctx->P, intel_keyinfo + 2*KEY_LENGTH, KEY_LENGTH);
+	mpi_write_binary(&ctx->Q, intel_keyinfo + 3*KEY_LENGTH, KEY_LENGTH);
+	mpi_write_binary(&ctx->E, intel_keyinfo + 4*KEY_LENGTH, KEY_LENGTH);
 
     	generate_launch_key(device_seckey, launch_key);
 
 	/* Now encrypt the intel secret key with the launch key */
-	encrypt_quoting_key(intel_seckey, launch_key, encrypted_key);
+	encrypt_quoting_key(intel_keyinfo, launch_key, encrypted_keyinfo);
 
 	/* And print the resulting encrypted data */
 	fprintf(stdout, "#define ENCRYPTED_QUOTING_KEY {");
-	for (i = 0; i < DEVICE_KEY_LENGTH; i++) {
-		fprintf(stdout, "0x%02x, ", encrypted_key[i]);
+	for (i = 0; i < 5*KEY_LENGTH; i++) {
+		fprintf(stdout, "0x%02x, ", encrypted_keyinfo[i]);
 	}
 	fprintf(stdout, "}\n");
 	return;

@@ -44,6 +44,6 @@ extern unsigned long heap_end;
 extern void _enclu(enclu_cmd_t leaf, uint64_t rbx, uint64_t rcx, uint64_t rdx,
            out_regs_t *out_regs);
 extern void aes_cmac(unsigned char *key, unsigned char *input, size_t bytes, unsigned char *mac);
-extern void rsa_sign(unsigned char *key, unsigned char *input, size_t bytes, 
+extern void rsa_sign(rsa_context *ctx, unsigned char *input, size_t bytes, 
               	    unsigned char *sig);
 

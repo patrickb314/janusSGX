@@ -19,24 +19,6 @@
 
 #include <sgx-lib.h>
 
-#include <quoting-key.h>
-unsigned char crypt_quoting_key[KEY_LENGTH] = ENCRYPTED_QUOTING_KEY;
-
-int decrypt_quoting_key(unsigned char *in, const unsigned char *key, 
-			unsigned char *out)
-{
-	/* XXX check return values in here */
-	aes_context aes;
-	unsigned char iv[16];
-	memset(iv, 0xde, 16);
-
-	aes_init(&aes);
-	aes_setkey_dec(&aes, key, DEVICE_KEY_LENGTH_BITS);
-	aes_crypt_cbc(&aes, AES_DECRYPT, KEY_LENGTH, iv, in, out);
-	aes_free(&aes);
-	return 0;
-}
-
 int verify_report(report_t *report)
 {
 	keyrequest_t keyreq;
@@ -65,14 +47,10 @@ int verify_report(report_t *report)
 
 void sign_quote(quote_t *q)
 {
+#if 0
 	keyrequest_t keyreq;
 
-	/* Some of these structures are large; do we need to worry about the
-	 * size of the stack? Using global variables is also dicey because
-	 * of the potential for eenter/aex/eenter/eexit/eresume corrupting 
-	 * things. */
 	unsigned char launch_key[DEVICE_KEY_LENGTH];
-	unsigned char quoting_key[KEY_LENGTH];
 
 	/* Get the platform launch key. */
         memset(&keyreq, 0, sizeof(keyreq));
@@ -82,17 +60,18 @@ void sign_quote(quote_t *q)
         memset(&keyreq.keyid, 0, 32);
         sgx_getkey(&keyreq, launch_key);
 
-	/* Decrypt the quoting key and sign. */
-	decrypt_quoting_key(crypt_quoting_key, launch_key, quoting_key);
-	rsa_sign(quoting_key, (unsigned char *)&q->report, 384,
-		 (unsigned char *)q->sig);
-	
+	/* Get the quoting key and sign. */
+	decrypt_quoting_key(&ctx, launch_key, crypt_quoting_key);
+
+	/* Now we wouldsign that thing... */
+	rsa_sign(&ctx, (unsigned char *)&q->report, 384,
+		       (unsigned char *)q->sig);
+#endif
 	return;
 }
 
 void enclave_main(report_t *report, quote_t *quote)
 {
-
 	report_t *r; 
 	quote_t *q;
 

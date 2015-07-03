@@ -20,7 +20,9 @@ void *malloc(size_t len)
 		_malloc_init(top, HEAP_PAGE_FRAMES*PAGE_SIZE);
         }
 
-	if (len <= 0) return NULL;
+	if (len <= 0) {
+		return NULL;
+	}
 	val = heap_top;
 	newtop = (char *)((unsigned long)(heap_top + len + 7) & ~0x7);
 
