@@ -2196,7 +2196,8 @@ void sgx_ereport(CPUX86State *env)
     aes_cmac128_context ctx;
 
     aes_cmac128_starts(&ctx, tmp_reportkey);
-    aes_cmac128_update(&ctx, (uint8_t *)&tmp_report, 416);
+    //CMAC doesn't cover the keyid according to spec?
+    aes_cmac128_update(&ctx, (uint8_t *)&tmp_report, 384);
     aes_cmac128_final(&ctx, tmp_report.mac);
 
     uint8_t report[512];

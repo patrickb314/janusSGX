@@ -15,8 +15,10 @@ void rsa_sign(unsigned char *key, unsigned char *input, size_t bytes,
 	unsigned char hash[HASH_SIZE];
 	rsa_context ctx;
 
-        rsa_init(&ctx, RSA_PKCS_V15, 0);
         sha1((unsigned char *)input, bytes, hash);
+        rsa_init(&ctx, RSA_PKCS_V15, 0);
+	/* This won't work, as RSA takes more initialization than this. */
+
         rsa_pkcs1_sign(&ctx, NULL, NULL, RSA_PRIVATE,
                        POLARSSL_MD_SHA1, HASH_SIZE, hash, sig);
         rsa_free(&ctx);
