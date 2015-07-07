@@ -185,3 +185,14 @@ void *memcpy (void *dest, const void *src, size_t size)
 
     return dest;
 }
+
+void enclave_exception (void *prev_cssa)
+{
+	// For now, just return to the trampoline, which will eexit out
+	// of the enclave. Longer term, we should examine the stack in 
+	// prev_cssa to see if there's an actual enclave-side exception
+	// we need to handle. For now, though, we just assume that
+	// it was an external interrupt and the enclave just needs to be
+	// eresumed.
+	return; 
+}

@@ -6,10 +6,6 @@ SSL_OBJS := polarssl/rsa.o polarssl/entropy.o polarssl/ctr_drbg.o \
 	polarssl/sha512.o polarssl/aes.o polarssl/entropy_poll.o polarssl/aesni.o \
 	polarssl/timing.o polarssl/md_wrap.o polarssl/sha256.o polarssl/md5.o \
 	polarssl/ripemd160.o polarssl/net.o polarssl/aes_cmac128.o
-#  lib/polarssl/entropy.o lib/polarssl/ctr_drbg.o \
-# 	lib/polarssl/sha512.o lib/polarssl/entropy_poll.o \
-# 	lib/polarssl/timing.o lib/polarssl/md_wrap.o lib/polarssl/sha256.o lib/polarssl/md5.o \
-# 	lib/polarssl/ripemd160.o
 SGX_START=sgx-entry.o
 LDLIBS=-lelf
 SGX_LDLIBS=-L. -lsgx -lsgxssl -lsgx
@@ -31,8 +27,8 @@ LIBSGX_OBJS := $(patsubst %.c,%.o,$(wildcard lib/*.c)) $(SSL_CRYPTO_OBJS)
 HDRS := $(wildcard include/sgx*.h)
 BINS := $(patsubst %.c,%.sgx,$(wildcard test/*.c)) \
         $(patsubst %.c,%.sgx,$(wildcard demo/*.c)) \
-	bootstrap-launch bootstrap-quote \
-	sgx-test
+	quote-test launch-test sgx-test
+#	bootstrap-test
 ALL  := $(BINS) $(BOOTSTRAP_ENCS) sgx-tool
 
 all: $(ALL)
@@ -73,20 +69,14 @@ demo/%.sgx: demo/%.o $(SGX_OBJS) $(SGX_LIBS)
 bootstrap/%.o: bootstrap/%.c $(HDRS)
 	$(CC) -c $(CFLAGS) -o $@ $<
 
-bootstrap-launch: bootstrap-launch.o $(SGX_OBJS) $(SSL_OBJS)
+launch-test: launch-test.o $(SGX_OBJS) $(SSL_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS) -lelf
 
-bootstrap-quote: bootstrap-quote.o $(SGX_OBJS) $(SSL_OBJS)
+quote-test: quote-test.o $(SGX_OBJS) $(SSL_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS) -lelf
 
 bootstrap/%.sgx: bootstrap/%.o $(SGX_OBJS) $(SGX_LIBS) include/quoting-key.h
 	$(CC) $(CFLAGS) -nostdlib -Wl,-T,sgx.lds $< -o $@ $(SGX_START) $(SGX_LDLIBS) -lgcc
-
-include/quoting-key.h: sgx-tool
-	./sgx-tool -Q conf/intel.key -K conf/device.key > $@
-
-bootstrap-quote/quoting-enclave.sgx: bootstrap/quoting-enclave.o $(SGX_OBJS) $(SGX_LIBS)
-	$(CC) $(CFLAGS) -nostartfiles -Wl,-T,sgx.lds $< -o $@ $(SGX_START) $(SGX_LDLIBS)
 
 clean: 
 	rm -f polarssl/*.o *.o $(ALL)

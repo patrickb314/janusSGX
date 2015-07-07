@@ -78,7 +78,10 @@ void exception_handler(void)
     sgx_msg(trace, "Asy_Call\n");
     uint64_t aep = 0x00;
     uint64_t rdx = 0x00;
-
+    /* We should be able to get the TCS state out of %rbx, so we can
+     * either eenter (for the enclave to handle its exception) or eresume as 
+     * needed. The current simulator doesn't actually do that (?) though,
+     * and uses the _tcs_app hack instead. We'll fix that later. */
 	asm("movl %0, %%eax\n\t"
         "movq %1, %%rbx\n\t"
         "movq %2, %%rcx\n\t"
@@ -217,7 +220,7 @@ void update_einittoken(einittoken_t *token)
 
 tcs_t *run_enclave(void *entry, void *codes, unsigned int n_of_pages, char *conf)
 {
-    int keid = create_enclave(entry, codes, n_of_pages, conf);
+    int keid = create_enclave_conf(entry, codes, n_of_pages, conf);
     
     if (keid < 0)
         err(1, "failed to create enclave");
@@ -273,12 +276,11 @@ void print_eid_stat(keid_t stat) {
 }
 
 int create_enclave(void *entry, void *codes, unsigned int n_of_code_pages, 
-		   char *conf)
+		   sigstruct_t *sigstruct, einittoken_t *token)
 {
     assert(sizeof(tcs_t) == PAGE_SIZE);
-
-    // allocate TCS
     tcs_t *tcs = (tcs_t *)memalign(PAGE_SIZE, sizeof(tcs_t));
+    // allocate TCS
     if (!tcs)
         err(1, "failed to allocate tcs");
 
@@ -287,10 +289,24 @@ int create_enclave(void *entry, void *codes, unsigned int n_of_code_pages,
     // XXX. tcs structure is freed at the end! maintain as part of
     // keid structure
     _tcs_app = (uint64_t)tcs;
-
     // Calculate the offset for setting oentry of tcs
     size_t offset = (uintptr_t)entry - (uintptr_t)codes;
     set_tcs_fields(tcs, offset);
+
+    sgx_dbg(trace, "entry: %p", entry);
+
+    int keid = syscall_create_enclave(entry, codes, n_of_code_pages, tcs, sigstruct, token, !token->valid);
+    if (keid < 0)
+        err(1, "failed to create enclave");
+
+    free(tcs);
+    return keid;
+}
+
+int create_enclave_conf(void *entry, void *codes, unsigned int n_of_code_pages, 
+		   	char *conf)
+{
+
 
     sigstruct_t *sigstruct;
     einittoken_t *token;
@@ -299,7 +315,8 @@ int create_enclave(void *entry, void *codes, unsigned int n_of_code_pages,
 	rsa_key_t pubkey, seckey;
 
 	// load rsa key from conf
-	rsa_context *ctx = load_rsa_keys("conf/test.key", pubkey, seckey, KEY_LENGTH_BITS);
+	rsa_context *ctx = load_rsa_keys("conf/test.key", pubkey, seckey, 
+					 KEY_LENGTH_BITS);
 	// set sigstruct which will be used for signing
 	sigstruct = alloc_sigstruct();
 	if (!sigstruct)
@@ -310,7 +327,6 @@ int create_enclave(void *entry, void *codes, unsigned int n_of_code_pages,
 
 	// signing with private key
 	rsa_sig_t sig;
-	rsa_sign(ctx, sig, (unsigned char *)sigstruct, sizeof(sigstruct_t));
         free(ctx);
 
 	// set sigstruct after signing
@@ -326,20 +342,12 @@ int create_enclave(void *entry, void *codes, unsigned int n_of_code_pages,
 	// load einittoken from file
 	token = load_einittoken(conf);
     }
-
-    sgx_dbg(trace, "entry: %p", entry);
-
-    int keid = syscall_create_enclave(entry, codes, n_of_code_pages, tcs, sigstruct, token, !token->valid);
-    if (keid < 0)
-        err(1, "failed to create enclave");
-
-    free(tcs);
-    return keid;
+    return create_enclave(entry, codes, n_of_code_pages, sigstruct, token);
 }
 
 tcs_t *run_enclave_test(void *entry, void *codes, unsigned int n_of_code_pages)
 {
-    int keid = create_enclave(entry, codes, n_of_code_pages, NULL);
+    int keid = create_enclave_conf(entry, codes, n_of_code_pages, NULL);
 
     if (syscall_stat_enclave(keid, &stat) < 0)
         err(1, "failed to stat enclave");

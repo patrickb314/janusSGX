@@ -21,6 +21,7 @@
 
 #define SSA_FRAME_PAGES		1
 #define SSA_FRAME_SHIFT		(PAGE_SHIFT + (SSA_FRAME_PAGES - 1))
+#define SSA_FRAME_SIZE		(1 << SSA_FRAME_SHIFT)
 #define SSA_FRAME_MASK		(~((1 << SSA_FRAME_SHIFT) - 1))
 /**
  * Entry point for enclave calls.
@@ -102,7 +103,7 @@ ENTRY(enclave_start)
 	 */
 	subq $15*8, %rsp		/* Make room on the stack            */
 	movq %rcx, 10*8(%rsp)		/* Save user-space RIP               */
-					/* RAX contains EENTER leaf 	     */
+					/* RAX contained EENTER leaf 	     */
 	movq %rdi,  8*8(%rsp)		/* Save user-space RDI (ARG0)        */
 	movq %rsi,  7*8(%rsp)		/* Save user-space RSI (ARG1)        */
 	movq %rdx,  6*8(%rsp)		/* Save user-space RDX (ARG2)        */
@@ -113,12 +114,27 @@ ENTRY(enclave_start)
 	movq %r10,  1*8(%rsp)		/* Save user-space R10 (ARG3)        */
 	movq %r11,     (%rsp)		/* Save user-space RFLAGS            */
 
+	/* Now determine where to go. If this is a regular TCS call, 
+	 * CSSA will be zero and go to enclave_main. If this is an exception
+	 * call, go to enclave_exception with a pointer to the previous 
+	 * SSA instead. This means that all recursing into the enclave
+	 * happens via enclave_exception, which needs to be careful of that. */
+	test %rbx, %rbx
+	jz 1f 	
+	/* The exception case - arg0 should be base of the previous CSSA    */
+	lea 15*8(%rsp), %rdi
+	sub $(PAGE_SIZE + SSA_FRAME_SIZE), %rdi
+	call enclave_exception
+	ja 2f				/* Return to user space, which should*/
+					/* eresume the previous entry 	     */
+    1:
 	/*
 	 * Call the enclave call handler
 	 */
 	movq %r10, %rcx			/* Per x86_64 C ABI, RCX holds ARG3  */
 	call enclave_main		/* Call the main enclave entry point */
 
+    2:
 	/*
 	 * Return to user-space
 	 */

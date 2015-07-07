@@ -79,7 +79,9 @@ typedef struct quote {
 // user-level libs
 extern void enclu(enclu_cmd_t leaf, uint64_t rbx, uint64_t rcx, uint64_t rdx,
                   out_regs_t* out_regs);
-int create_enclave(void *entry, void *codes, unsigned int n_of_pages, char *conf);
+int create_enclave(void *entry, void *codes, unsigned int n_of_pages, 
+		   sigstruct_t *ss, einittoken_t *ei);
+int create_enclave_conf(void *entry, void *codes, unsigned int n_of_pages, char *conf);
 int create_enclave_test(void *entry, void *codes, unsigned int n_of_pages);
 
 tcs_t *run_enclave(void *entry, void *codes, unsigned int n_of_pages, char *conf);

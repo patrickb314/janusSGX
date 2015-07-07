@@ -10,18 +10,27 @@ Current Todo:
   linker relocations.  - DONE
 * Create a simple launch enclave that signs init tokens where the inittoken
   is passed in as argument 1.  - DONE
-- Create a second enclave that does local attestation correctly with another
-  enclave in the same user program.
-- Get more of PolarSSL running
+* Create a second enclave that does local attestation correctly with another
+  enclave in the same user program - DONE
+* Fix trampoline to call exception code, user exception code to eenter excepting
+  enclave and then resume after it exits - PARTIALLY DONE
+  * Software trampoline should check for recursing into the TCS and call 
+    enclave exception code instead so we can't be corrupted that way - DONE
+  - Longer-term the user-side AEP code may want to be able to recurse into the 
+    enclave so it can handle exceptions. This will also require fixing
+    register handling and the user and enclave side exception handling code - DEFERRED
+- Get more of PolarSSL running in enclave space - PARTIALLY DONE
    * AES CMAC for launch token generation - DONE
-   - RSA for quoting enclave signing - SOON
+   - RSA for quoting enclave signing - NEXT
    - An entropy source in enclaves (probably implement RDRAND in
      qemu using /dev/urandom) - DEFERED
    - SSL/TLS communication primitives from enclaves - DEFERED
-- Get an actualy quoting enclave running
+- Create call in with two shared buffers and command structure for it - IN PROGRESS
+- Get an actualy quoting enclave running - DEFERED
 - Get a buffer for output from enclaves that can support the equivalent of 
   printf
-- Set up a high-speed communication channel out of the enclave
+- Set up a high-speed communication channel out of the enclave - basically SEND
+  and RECV commands over the shared buffer channel
 
 ***
 

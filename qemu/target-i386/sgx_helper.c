@@ -4064,6 +4064,10 @@ void helper_sgx_ehandle(CPUX86State *env)
     env->segs[R_GS].selector = env->cregs.CR_SAVE_GS.selector;
 
     sgx_dbg(trace, "Was at EIP:  %"PRIx64"", env->eip);
+    // XXXX PGB XXX -Why are the following instructions commented out?
+    // We would like the exception handling code to be able to eenter/eresume
+    // to the proper TCS without the terrible _tcs_app hack that's there
+    // right now.
     // Set EAX to the ERESUME leaf index
     //env->regs[R_EAX] = ENCLU_ERESUME;
     // Put the TCS LA into RBX for later use by ERESUME

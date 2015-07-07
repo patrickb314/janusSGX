@@ -23,7 +23,7 @@ tcs_t *create_elf_enclave(char *enc, char *conf)
 	int keid;
 	keid_t stat;
 
-        keid = create_enclave(entry, pages, npages, conf);
+        keid = create_enclave_conf(entry, pages, npages, conf);
 
         if (syscall_stat_enclave(keid, &stat) < 0)
                 err(1, "failed to stat enclave");
