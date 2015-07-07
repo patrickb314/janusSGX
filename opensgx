@@ -20,13 +20,14 @@ compile_code() {
   make $SUBDIR/$NAME.sgx
 }
 
-run_enclave() {
+run_program() {
   BASEDIR=$(dirname $1)
   BASENAME=$(basename $1)
   NAME="${BASENAME%.*}"
   EXE=$BASEDIR/$NAME.sgx
 
-  $SGX $EXE $@
+  echo "Running " $SGX $@
+  $SGX $@
 }
 
 measure() {
@@ -92,6 +93,6 @@ case "$1" in
   esac
   ;;
   *)
-  run_enclave $1
+  run_program $@
   ;;
 esac

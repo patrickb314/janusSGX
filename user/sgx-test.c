@@ -15,6 +15,11 @@ int a_val = 0;
 
 ENCCALL1(enclave1_call, int *)
 
+void usage(char *progname)
+{
+	fprintf(stderr, "usage: %s enclave.sgx [enclave.conf]\n", progname);
+}
+
 int main(int argc, char **argv)
 {
 	void *conf, *enclave;
@@ -39,6 +44,10 @@ int main(int argc, char **argv)
         	err(1, "failed to init sgx");
 
 	pages = load_elf_enclave(enclave, &npages, &entry);
+	if (!pages) {
+		usage(argv[0]);
+		exit(-1);
+	}
 
 	fprintf(stdout, "Creating enclave of %d pages at address %p.\n", npages, pages);
     	keid = create_enclave_conf(entry, pages, npages, conf);

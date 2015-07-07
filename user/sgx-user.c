@@ -327,7 +327,7 @@ int create_enclave_conf(void *entry, void *codes, unsigned int n_of_code_pages,
 
 	// signing with private key
 	rsa_sig_t sig;
-        free(ctx);
+	rsa_sign(ctx, sig, (unsigned char*)sigstruct, sizeof(sigstruct_t));
 
 	// set sigstruct after signing
 	update_sigstruct(sigstruct, pubkey, sig);
@@ -336,6 +336,7 @@ int create_enclave_conf(void *entry, void *codes, unsigned int n_of_code_pages,
 	token = alloc_einittoken(pubkey, sigstruct);
 	if (!token)
        		err(1, "failed to allocate einittoken");
+	free(ctx);
     } else {
 	// load sigstruct from file
 	sigstruct = load_sigstruct(conf);
