@@ -54,8 +54,9 @@ int main(int argc, char **argv)
 
     	if (syscall_stat_enclave(keid, &stat) < 0)
         	err(1, "failed to stat enclave");
-
+	
     	enclave1_call(stat.tcs, exception_handler, &a_val);
+	fprintf(stdout, "a_val = %d.\n", a_val);
 
     	return 0;
 }

@@ -223,7 +223,8 @@ static
 void set_stack_frame(tcs_t *tcs)
 {
     tcs->nssa = STACK_PAGE_FRAMES_PER_THREAD; /* XXX PGB - Divide by secs->ssaframesize once that's bigger than 1 */
-    tcs->cssa = 2; /* XXX PGB - Why? This is zeroed by EADD... */
+    tcs->cssa = 2; /* XXX PGB - Why was this 2 and not zeroed by EADD? This 
+		   /* breaks proper exception handling! */
 }
 
 // Set tcs oentry.

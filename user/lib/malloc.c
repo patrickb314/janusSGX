@@ -1,8 +1,9 @@
 #include <sgx-lib.h>
 
+extern void *_end;
 char *heap_base = 0;
 char *heap_top = 0;
-char *heap_limit = 0;
+char *heap_limit = &_end;
 
 static int _malloc_init(void *start, size_t len)
 {
@@ -10,7 +11,6 @@ static int _malloc_init(void *start, size_t len)
 	heap_limit = heap_top + len;
 }
 
-extern void *_end;
 void *malloc(size_t len)
 {
 	char *newtop, *val;

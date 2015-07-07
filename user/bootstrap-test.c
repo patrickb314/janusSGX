@@ -34,27 +34,44 @@ void usage(char *progname)
 	fprintf(stderr, "usage: %s [-l launch.sgx] [-L launch.conf] [-q quote.sgx ] [-Q quote.conf] [-K intel.key] test.sgx test.conf\n", progname);
 }
 
-void parse_options(int argc, char **argv, char *le, char *lc, char *qe, char *qc,
-		   char *ik, int *optend)
+void parse_options(int argc, char **argv, char **le, char **lc, 
+		   char **qe, char **qc, char **ik, int *optend)
 {
-	le = "bootstrap/launch-enclave.sgx"; lc = "bootstrap/launch-enclave.conf";
-	qe = "bootstrap/quoting-enclave.sgx"; qc = "bootstrap/quoting-enclave.conf";
-	ik = "user/intel.key";
+	*le = "bootstrap/launch-enclave.sgx"; 
+	*lc = "bootstrap/launch-enclave.conf";
+	*qe = "bootstrap/quoting-enclave.sgx"; 
+	*qc = "bootstrap/quoting-enclave.conf";
+	*ik = "user/intel.key";
 	*optend = 1;
+}
+
+int save_conf(char *conf, sigstruct_t *ss, einittoken_t *token)
+{
+	FILE *fp = fopen(conf, "w+");
+	if (!fp) return -1;
+	
+	/* TODO */
+	return -1;
+}
+
+int create_einittoken(einittoken_t *token, sigstruct_t *ss, 
+		      char *launchenc, char *launchconf)
+{
+	return -1;
 }
 
 int main(int argc, char **argv)
 {
 	char *testenc, *testconf;
-	sigstruct_t *testss;
-	einittoken_t *testeit;
+	sigstruct_t testss, *tmpss;
+	einittoken_t testeit, *tmpeit;
 	tcs_t *testtcs;
 	pthread_t ethr;
 	egate_t e;
 	int done;
 	char *launchenc, *launchconf, *quoteenc, *quoteconf, *intelkey;
 	unsigned char intel_pubkey[DEVICE_KEY_LENGTH], intel_seckey[DEVICE_KEY_LENGTH];
-	int optend;
+	int optend, ret;
 
 	/* Parse options */ 
 	parse_options(argc, argv, &launchenc, &launchconf, &quoteenc, 
@@ -75,29 +92,39 @@ int main(int argc, char **argv)
 
 	/* Get the sigstruct for the test enclave and see if we have an 
 	 * inittoken, too */
-	testss = load_sigstruct(testconf);
-	if (!testss) {
+	tmpss =  load_sigstruct(testconf);
+	if (!tmpss) {
 		usage(argv[0]);
 		exit(-1);
 	}
+	testss = *tmpss;
+	free(tmpss);
 
-	testeit = load_einittoken(testconf);
-	if (!testeit) {
-		testeit = create_einittoken(testss);
-		if (!testeit) {
+	tmpeit = load_einittoken(testconf);
+	if (tmpeit) {
+		testeit = *tmpeit;
+		free(tmpeit);
+	} else {
+		ret = create_einittoken(&testeit, &testss, 
+					launchenc, launchconf);
+		if (ret) {
 			usage(argv[0]);
 			exit(-1);
 		}
-		save_conf(testconf, testss, testeit);
-		printf("Updated testconf with a launch-enclave signed EIT.\n");
+		ret = save_conf(testconf, &testss, &testeit);
+		if (ret) {
+			fprintf(stderr, "Unable to save new launch token.\n");
+		} else {
+			printf("Updated testconf with a launch-enclave signed EIT.\n");
+		}
 	}
 
 	/* Now load and create the enclave question */
-	
-	testtcs = create_elf_enclave(testenc, testss, testeit);
+	testtcs = create_elf_enclave(testenc, &testss, &testeit);
 
 	/* Create a gate to run and communicate with the test enclave */
-	egate_init(&e, testtcs);
+	egate_init(&e, testtcs, 1);
+
 	/* Once it's up, we run it launch it *in its own thread* and then
 	 * talk with it asynchronously so that we're not always enter/exiting
 	 * it. */
@@ -105,14 +132,16 @@ int main(int argc, char **argv)
 	
 	done = 0;
 	while (!done) {
+		int buffer[2048];
 		ecmd_t c;
 		int ret;
-		ret = egate_dequeue(&e, &c, ECHAN_FROMENCLAVE); 
+		ret = egate_dequeue(&e, &c, buffer, 2048, ECHAN_FROMENCLAVE); 
 		if (!ret) break;
 		if (c.t <= ECMD_LAST_SYSTEM) {
-			egate_handle_cmd(&e, &c, &done); // Handle predefined cmd
+			// Handle predefined cmd
+			egate_handle_cmd(&e, &c, buffer, 2048, &done); 
 		} else {
-			printf("User-specific communication from enclave %d.\n", 
+			printf("User-specific communication from enclave %d.\n",
 				c.t);
 		}
 	}

@@ -196,3 +196,53 @@ void enclave_exception (void *prev_cssa)
 	// eresumed.
 	return; 
 }
+
+/* The check below relies on the layout of the enclave putting the SSA
+ * after the code and data. If that changes (which it may need to do to 
+ * support multiple TCSes and non-readable TCSes on real hardware), this 
+ * check will need to change */
+extern void *__executable_start;
+extern void *heap_limit;
+int in_enclave(const void *addr) {
+	return (addr >= (void *)&__executable_start) && (addr < heap_limit);
+}
+
+void *copyin(void *dest, const void *src, size_t size)
+{
+	if (!in_enclave(dest)) return NULL;
+	if (!in_enclave((char *)dest + size)) return NULL;
+	if (in_enclave(src)) return NULL;
+	if (in_enclave((char *)src + size)) return NULL;
+
+	return memcpy(dest, src, size);
+}
+
+void *copyout(void *dest, const void *src, size_t size)
+{
+	if (in_enclave(dest)) return NULL;
+	if (in_enclave((char *)dest + size)) return NULL;
+	if (!in_enclave(src)) return NULL;
+	if (!in_enclave((char *)src + size)) return NULL;
+
+	return memcpy(dest, src, size);
+}
+
+void *copyenclave(void *dest, const void *src, size_t size)
+{
+	if (!in_enclave(dest)) return NULL; // the important checks
+	if (!in_enclave((char *)dest + size)) return NULL;
+	if (!in_enclave(src)) return NULL;
+	if (!in_enclave((char *)src + size)) return NULL;
+
+	return memcpy(dest, src, size);
+}
+
+void *copyuser(void *dest, const void *src, size_t size)
+{
+	if (in_enclave(dest)) return NULL;
+	if (in_enclave((char *)dest + size)) return NULL;
+	if (in_enclave(src)) return NULL; // the important checks
+	if (in_enclave((char *)src + size)) return NULL;
+
+	return memcpy(dest, src, size);
+}

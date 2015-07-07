@@ -6,64 +6,75 @@
  * from, or does the caller fill these in since they're all in my SECS (which
  * he set up and were mac-ed to launch me anyway? 
  * 2. Look into signing of debug enclaves. Is there a seperate signer for those?
- * 3. 
  */
 #include <sgx-lib.h>
 void enclave_main(einittoken_t *inittoken)
 {
+	einittoken_t tok;
 	keyrequest_t keyreq;
 	unsigned char launch_key[128];
 	unsigned char mac[MAC_SIZE];
-	int i;
+	int i, reti;
+	void *retp;
+	
+	memset(inittoken->mac, -1, MAC_SIZE);
+	retp = copyin(&tok, inittoken, sizeof(einittoken_t));
+	if (!retp) goto fail;
 
+	memset(inittoken->mac, -2, MAC_SIZE);
 	/* Only sign non-intel enclaves */
-	if (!inittoken->valid) {
+	if (!tok.valid) {
 		goto fail;
 	} 
 
+	memset(inittoken->mac, -3, MAC_SIZE);
 	for (i = 0; i < 44; i++) {
-		if (inittoken->reserved1[i] != 0) {
+		if (tok.reserved1[i] != 0) {
 			goto fail;
 		} 
 	}
 
-	if (inittoken->attributes.reserved1 != 0) {
+	memset(inittoken->mac, -4, MAC_SIZE);
+	if (tok.attributes.reserved1 != 0) {
 		goto fail;
 	}
 
 #if 0
+	/* Whey does the inittoken for simple enclaves list as
+	 * one with an inittoken key? XXX */
+	memset(inittoken->mac, -5, MAC_SIZE);
 	/* Don't sign new launch enclaves */
-	if (inittoken->attributes.einittokenkey) {
+	if (tok.attributes.einittokenkey) {
 		goto fail;
 	}
 
+	memset(inittoken->mac, -6, MAC_SIZE);
 	/* Should we sign debug enclaves? */
-	if (inittoken->attributes.debug) {
-		/* If this is a debug enclave, we probably want additional
-		 * checks - what should those be? */
+	if (tok.attributes.debug) {
+		goto fail;
 	}
 #endif
 
+	memset(inittoken->mac, -7, MAC_SIZE);
 	/* Get the launch key -
 	 * in the request, the attribute mask, cpusvn, isvsvn, and 
 	 * keyid come from the request! */
 	memset(&keyreq, 0, sizeof(keyreq));
 	keyreq.keyname = LAUNCH_KEY;
-	memcpy(keyreq.cpusvn, &inittoken->cpuSvnLE, 16);
-	keyreq.isvsvn = inittoken->isvsvnLE;
-	memcpy(&keyreq.keyid, &inittoken->keyid, 32);
+	memcpy(keyreq.cpusvn, &tok.cpuSvnLE, 16);
+	keyreq.isvsvn = tok.isvsvnLE;
+	memcpy(&keyreq.keyid, &tok.keyid, 32);
 	sgx_getkey(&keyreq, launch_key);
 
+	memset(inittoken->mac, -8, MAC_SIZE);
 	/* Only the first 192 bytes of hte structure are signed */
-	aes_cmac(launch_key, (unsigned char *)inittoken, 192, mac); 
-	memcpy(inittoken->mac, mac, MAC_SIZE);
+	aes_cmac(launch_key, (unsigned char *)&tok, 192, mac); 
+	memcpy(&tok.mac, mac, MAC_SIZE);
 
-	/* Now we have to sign it! */
-	
 	/* And we're done. */
+	copyout(inittoken, &tok, sizeof(einittoken_t));
 	return;
 
     fail:
-	memset(inittoken->mac, 0xff, MAC_SIZE);
 	return;
 }

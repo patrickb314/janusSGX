@@ -1317,7 +1317,7 @@ void sgx_eenter(CPUX86State *env)
         is_canonical((uint64_t)aep, env);
     }
     /* TODO - Check concurrency of operations on TCS */
-#if DEBUG
+#if 1
     sgx_dbg(trace, "TCS-> nssa = %d", tcs->nssa);
     sgx_dbg(trace, "TCS-> cssa = %d", tcs->cssa);
     sgx_dbg(trace, "Index_TCS  valid : %d Blocked : %d",
@@ -3123,6 +3123,10 @@ void sgx_eadd(CPUX86State *env)
         scratch_secinfo.flags.r = 0;
         scratch_secinfo.flags.w = 0;
         scratch_secinfo.flags.x = 0;
+	/* XXX PGB - These are being set in the source page, not the destination
+	 * page, so this isn't right!!! In addition, we've already copied to
+	 * the destination page, so what we'll end up measuring doesn't have
+	 * a 0 there either. */
         tcs->flags.dbgoptin = 0;
         tcs->cssa = 0;
         sgx_dbg(trace, "current cssa is %d", tcs->cssa);

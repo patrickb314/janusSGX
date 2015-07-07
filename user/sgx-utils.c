@@ -498,14 +498,16 @@ unsigned char *load_measurement(char *conf)
 
 sigstruct_t *load_sigstruct(char *conf)
 {
-    FILE *fp = fopen(conf, "r");
-    if (!fp)
-        err(1, "failed to locate %s", conf);
-
     char *line = NULL;
     size_t len = 0;
     sigstruct_t *sigstruct;
     int load_start;
+
+    FILE *fp = fopen(conf, "r");
+    if (!fp) {
+        err(1, "failed to locate %s", conf);
+	return NULL;
+    }
 
     sigstruct = memalign(PAGE_SIZE, sizeof(sigstruct_t));
     memset(sigstruct, 0, sizeof(sigstruct_t));
@@ -799,6 +801,11 @@ sigstruct_t *load_sigstruct(char *conf)
     free(line);
     fclose(fp);
 
+    if (!load_start) {
+	free(sigstruct);
+	return NULL;
+    }
+
     return sigstruct;
 }
 
@@ -911,14 +918,17 @@ MAC               : %s",
 
 einittoken_t *load_einittoken(char *conf)
 {
-    FILE *fp = fopen(conf, "r");
-    if (!fp)
-        err(1, "failed to locate %s", conf);
-
+    FILE *fp;
     char *line = NULL;
     size_t len = 0;
     einittoken_t *token;
     int load_start;
+
+    fp = fopen(conf, "r");
+    if (!fp) {
+        err(1, "failed to locate %s", conf);
+	return NULL;
+    }
 
     token = memalign(EINITTOKEN_ALIGN_SIZE, sizeof(einittoken_t));
     memset(token, 0, sizeof(einittoken_t));
@@ -1177,7 +1187,12 @@ einittoken_t *load_einittoken(char *conf)
     free(line);
     fclose(fp);
 
-    return token;
+    if (load_start) {
+        return token;
+    } else {
+	free(token);
+	return NULL;
+    }
 }
 
 void hexdump(FILE *fd, void *addr, int len)

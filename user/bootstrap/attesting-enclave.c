@@ -15,8 +15,8 @@ void enclave_main(targetinfo_t *dest_enc, unsigned char *nonce,
 
 	/* Copy arguments from user space into enclave space. 
 	 * EREPORT requires that all arguments be in this enclave. */
-	memcpy(&t, dest_enc, sizeof(targetinfo_t));
-	memcpy(n, nonce, 64);
+	copyin(&t, dest_enc, sizeof(targetinfo_t));
+	copyin(n, nonce, 64);
 
 	/* Generate a report for the target enclave */
 	sgx_report(&t, n, &r);
@@ -26,6 +26,6 @@ void enclave_main(targetinfo_t *dest_enc, unsigned char *nonce,
 	 * proper copyout? Probably we should check this; otherwise
 	 * user space could give us an address here to try and get
 	 * us to corrupt ourself? */
-	memcpy(report, &r, sizeof(report_t));
+	copyout(report, &r, sizeof(report_t));
 	return;
 }

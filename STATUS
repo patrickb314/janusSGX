@@ -19,17 +19,17 @@ Current Todo:
   - Longer-term the user-side AEP code may want to be able to recurse into the 
     enclave so it can handle exceptions. This will also require fixing
     register handling and the user and enclave side exception handling code - DEFERRED
+* Use copyin, copyout, copyenc, and copyuser calls that check where the destination - DONE
+  of the copy is.
+   * Create checking code for in/out of enclave
+   * Create copy routines
+   * Switch existing enclaves over to use new copy routines
 + Get more of PolarSSL running in enclave space - PARTIALLY DONE
    * AES CMAC for launch token generation - DONE
    - RSA for quoting enclave signing - NEXT
    - An entropy source in enclaves (probably implement RDRAND in
      qemu using /dev/urandom) - DEFERED
    - SSL/TLS communication primitives from enclaves - DEFERED
-- Use copyin, copyout, copyenc, and copyuser calls that check where the destination 
-  of the copy is.
-   - Create checking code for in/out of enclave
-   - Create copy routines
-   - Switch existing enclaves over to use new copy routines
 - Create call in with two shared buffers and command structure for it - IN PROGRESS
   - Get basic enclave gate abstraction set
   - Get a buffer for output from enclaves that can support the equivalent of 
@@ -37,6 +37,8 @@ Current Todo:
   - Set up a high-speed communication channel out of the enclave - basically SEND
     and RECV commands over the shared buffer channel
 - Get an actualy quoting enclave running - DEFERED
+- Fix CSSA setup to actually set it to proper values and still sign correctly in the
+  emulator. Once this is done, we can turn on the exception handler check in sgx-entry.S
 - Fix SSA protections to guard enclave stack against overflow
 ***
 

@@ -47,6 +47,8 @@ int verify_report(report_t *report)
 
 void sign_quote(quote_t *q)
 {
+	/* We don't actually sign the quote yet. We need to get RSA working,
+	 * and a way to get the private key to use for it */
 #if 0
 	keyrequest_t keyreq;
 
@@ -83,7 +85,7 @@ void enclave_main(report_t *report, quote_t *quote)
 	/* First, copy what we're working with to enclave memory
 	 * to avoid complications with the host racing with us 
 	 * to try and get odd results */
-	memcpy(r, report, sizeof(report_t));
+	copyin(r, report, sizeof(report_t));
 
 	/* Check that the report is actually locally. */
 	if (verify_report(report) != 0) {
@@ -97,7 +99,7 @@ void enclave_main(report_t *report, quote_t *quote)
 	sign_quote(q);
 
 	/* Copy the signed quote out */
-	memcpy(quote, q, sizeof(quote_t));
+	copyout(quote, q, sizeof(quote_t));
 out:
 	free(q);
 	free(r);

@@ -47,3 +47,7 @@ extern void aes_cmac(unsigned char *key, unsigned char *input, size_t bytes, uns
 extern void rsa_sign(rsa_context *ctx, unsigned char *input, size_t bytes, 
               	    unsigned char *sig);
 
+void *copyin(void *dest, const void *src, size_t size);
+void *copyout(void *dest, const void *src, size_t size);
+void *copyenclave(void *dest, const void *src, size_t size);
+void *copyuser(void *dest, const void *src, size_t size);

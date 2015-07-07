@@ -119,7 +119,13 @@ ENTRY(enclave_start)
 	 * call, go to enclave_exception with a pointer to the previous 
 	 * SSA instead. This means that all recursing into the enclave
 	 * happens via enclave_exception, which needs to be careful of that. */
-	test %rbx, %rbx
+
+#if 0
+	/* This won't work until CSSA handling is actually right. It's wrong
+	 * in the emulator because it doesn't set cssa/etc. in the the destination, 
+	 * but even fixing it int he CSSA passed in the TCS breaks things for reasons
+	 * I don't yet understand. */
+	test %rax, %rax
 	jz 1f 	
 	/* The exception case - arg0 should be base of the previous CSSA    */
 	lea 15*8(%rsp), %rdi
@@ -127,6 +133,7 @@ ENTRY(enclave_start)
 	call enclave_exception
 	ja 2f				/* Return to user space, which should*/
 					/* eresume the previous entry 	     */
+#endif
     1:
 	/*
 	 * Call the enclave call handler
