@@ -74,19 +74,22 @@
  */
 /* .section .enc_text */
 ENTRY(enclave_start)
-	/*
+	/* XXX PGB
 	 * Enter from user-space - entry RSP/RBP are saved in the SSA by EENTER
-	 * Just need to switch to a trusted stack, building up %rsp given the 
-	 * info we have. The real trick is to locate the SAA for the TCS;
-	 * That's hard given original GT/KAIST TCS/code/SSA layout. When we 
-	 * switch to a more sane code/TCS/SSA layout, it'll be much easier to find
-	 * the stack (and the heap!). Also, the TLS area will also go into the SSA, which
-	 * will need to be larger.
+	 * Just need to switch to a trusted stack, building up %rsp to point to
+	 * the right place in the SSA given the info we have. The real trick is 
+	 * that we can't actually read what's in the TCS on real hardware, the
+	 * code/data is between us and the SSA in the GT/KAIST TCS/code/SSA/Heap
+	 * layout. Switching to a code/TCS/SSA/Heap layout would help because it
+	 * would be easier to find * the stack (and the heap!). Also, the TLS 
+	 * area will also go into the SSA, which will need to be larger.
 	 *
 	 * Right now what we do assumes the TCS is readable, which it is in
- 	 * simulator and (rumored to be) in first generation hardware. As a result
-	 * we can find the enclave base using the entry offset in the TCS, and then the 
-	 * SSA from there.
+ 	 * simulator. As a result we can find the enclave base using the entry 
+	 * offset in the TCS, and then the SSA from there. The other alternative
+	 * is to rely on linker symbols to find the end of the code thus the 
+	 * start of the SSA areas. The trick there is knowning how many TCSes
+	 * there are...
 	 */
 	/* First, find the base of the enclave */
 	lea enclave_start(%rip), %rsp		/* TCS addr to RSP */
@@ -121,9 +124,10 @@ ENTRY(enclave_start)
 	 * happens via enclave_exception, which needs to be careful of that. */
 
 #if 0
-	/* This won't work until CSSA handling is actually right. It's wrong
-	 * in the emulator because it doesn't set cssa/etc. in the the destination, 
-	 * but even fixing it int he CSSA passed in the TCS breaks things for reasons
+	/* XXX PGB This won't work until emulator/runtime CSSA setup and 
+	 * handling is actually right. It's wrong in the emulator because it 
+	 * doesn't set cssa/etc. in the the destination, but even fixing it 
+	 * in the CSSA passed in the TCS breaks things for reasons
 	 * I don't yet understand. */
 	test %rax, %rax
 	jz 1f 	

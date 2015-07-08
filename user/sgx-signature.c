@@ -289,7 +289,7 @@ void generate_enclavehash(void *hash, void *code, int code_pages,
     g_update_counter = 0;
 
     // Pre-compute ssa frame and enclave size.
-    ssa_frame_size = 1; /* XXXPGB - should depend on the number of pages for 
+    ssa_frame_size = 1; /* XXX PGB - should depend on the number of pages for 
 			 * xsave and the enclave stack */
 
     // Set enclave_size
