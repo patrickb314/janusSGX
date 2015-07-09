@@ -1,4 +1,4 @@
-// The simplest enclave enter/exit.
+// Simple test case using the enclave gate mechanism
 
 #include "test.h"
 #include <sgx-lib.h>

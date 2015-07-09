@@ -7,13 +7,15 @@ typedef struct egate egate_t;
 
 
 enum echan_type {ECHAN_TO_ENCLAVE = 0, ECHAN_TO_USER};
-enum ecmd_type {ECMD_REPORT_REQ = 0, ECMD_RECV, ECMD_SEND, ECMD_PRINT, ECMD_EXIT};
+enum ecmd_type {ECMD_NONE = 0, ECMD_REPORT_REQ, ECMD_RECV, ECMD_SEND, ECMD_PRINT, ECMD_EXIT};
 typedef enum echan_type echan_type_t;
 typedef enum ecmd_type ecmd_type_t;
 
-#define ECMD_LAST_TOENC EMD_RECV
-#define ECMD_LAST_FROMENC ECMD_EXIT
-#define ECMD_LAST_SYSTEM ECMD_LAST_FROMENC
+#define ECMD_FIRST_FROM_USER ECMD_REPORT_REQ
+#define ECMD_LAST_FROM_USER EMD_RECV
+#define ECMD_FIRST_FROM_ENC ECMD_SEND
+#define ECMD_LAST_FROM_ENC ECMD_EXIT
+#define ECMD_LAST_SYSTEM ECMD_LAST_FROM_ENC
 
 struct ecmd {
 	ecmd_type_t t;

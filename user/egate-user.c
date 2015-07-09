@@ -25,6 +25,8 @@ static int echan_copytouser(echan_t *c, void *dest, size_t len)
 	int cnt = 0;
 	int start = c->start, end = c->end;
 
+	if (start == end) return -1;
+
 	if (len < echan_length_internal(start, end)) return -1;
 
 	cnt = min(len, ECHAN_BUF_SIZE - start);
@@ -47,8 +49,20 @@ int echan_user_peek(echan_t *c, ecmd_t *r)
 int egate_user_dequeue(egate_t *g, ecmd_t *r, void *buf, size_t len)
 {
 	echan_t *c = &g->channels[ECHAN_TO_USER];
-	int ret = echan_user_peek(c, r);
+	int ret;
+
+	printf("user-dequeue: channel has start=%d, end=%d.\n", c->start, c->end);
+
+	if (c->start == c->end) {
+		r->t = ECMD_NONE;
+		r->len = 0;
+		return 0;
+	}
+
+	ret = echan_user_peek(c, r);
 	if (ret) return ret;
+
+	printf("user-dequeue: cmd has type=%d, len=%d.\n", r->t, r->len);
 
 	if (r->len > len) return 0;
 	ret = echan_copytouser(c, buf, r->len);
@@ -61,11 +75,12 @@ int egate_user_cmd(egate_t *g, ecmd_t *r, void *buf, size_t len, int *done)
 	switch(r->t) {
 		case ECMD_PRINT:
 			printf("%s", buf);
-			break;
+			return 0;
 		case ECMD_EXIT:
 			*done = 1;
 			return 0;
-			break;
+		case ECMD_NONE:
+			return 0;
 		default:
 			return -1;
 	}

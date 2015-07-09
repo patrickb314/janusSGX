@@ -132,7 +132,10 @@ int main(int argc, char **argv)
 		int buffer[2048];
 		ecmd_t c;
 		int ret;
+
+		/* Run the enclave */
 		enclave_main(testtcs, exception_handler, &e);
+
 		/* When we leave the enclave, see what, if anything, it wants
 		 * us to do */
 		ret = egate_user_dequeue(&e, &c, buffer, 2048); 
