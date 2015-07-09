@@ -1,6 +1,6 @@
 SGX_LIBS := sgx-entry.o libsgx.a
 SGX_RUNTIME := sgx-runtime.o sgx-test-runtime.o
-SGX_OBJS := sgx-user.o sgx-elf.o sgx-kern.o sgx-kern-epc.o sgx-utils.o sgx-signature.o 
+SGX_OBJS := sgx-user.o sgx-elf.o sgx-kern.o sgx-kern-epc.o sgx-utils.o sgx-signature.o egate-user.o
 SSL_OBJS := polarssl/rsa.o polarssl/entropy.o polarssl/ctr_drbg.o \
 	polarssl/bignum.o polarssl/md.o polarssl/oid.o polarssl/asn1parse.o polarssl/sha1.o \
 	polarssl/sha512.o polarssl/aes.o polarssl/entropy_poll.o polarssl/aesni.o \
@@ -8,7 +8,7 @@ SSL_OBJS := polarssl/rsa.o polarssl/entropy.o polarssl/ctr_drbg.o \
 	polarssl/ripemd160.o polarssl/net.o polarssl/aes_cmac128.o
 SGX_START=sgx-entry.o
 LDLIBS=-lelf
-SGX_LDLIBS=-L. -lsgx -lsgxssl -lsgx
+SGX_LDLIBS=-L. -lsgx
 
 CFLAGS := -g -Iinclude -Iopenssl/include -Wall -pedantic -Wno-unused-function -std=gnu11 -fno-stack-protector -static -fPIC -fvisibility=hidden
 ASFLAGS := -D__ASSEMBLY__ -Iinclude -Wall -fno-stack-protector -static -fPIC
@@ -27,8 +27,7 @@ LIBSGX_OBJS := $(patsubst %.c,%.o,$(wildcard lib/*.c)) $(SSL_CRYPTO_OBJS)
 HDRS := $(wildcard include/sgx*.h)
 BINS := $(patsubst %.c,%.sgx,$(wildcard test/*.c)) \
         $(patsubst %.c,%.sgx,$(wildcard demo/*.c)) \
-	quote-test launch-test sgx-test 
-#bootstrap-test
+	quote-test launch-test sgx-test bootstrap-test
 ALL  := $(BINS) $(BOOTSTRAP_ENCS) sgx-tool
 
 all: $(ALL)
@@ -74,6 +73,9 @@ launch-test: launch-test.o $(SGX_OBJS) $(SSL_OBJS)
 
 quote-test: quote-test.o $(SGX_OBJS) $(SSL_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS) -lelf
+
+bootstrap-test: bootstrap-test.o $(SGX_OBJS) $(SSL_OBJS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS) -lelf -lpthread
 
 bootstrap/%.sgx: bootstrap/%.o $(SGX_OBJS) $(SGX_LIBS) include/quoting-key.h
 	$(CC) $(CFLAGS) -nostdlib -Wl,-T,sgx.lds $< -o $@ $(SGX_START) $(SGX_LDLIBS) -lgcc

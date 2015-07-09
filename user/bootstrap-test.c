@@ -12,6 +12,8 @@
 
 #include <egate.h>
 
+ENCCALL1(enclave_main, egate_t *)
+
 tcs_t *create_elf_enclave(char *enc, sigstruct_t *ss, einittoken_t *ei)
 {
 	size_t npages;
@@ -41,7 +43,7 @@ void parse_options(int argc, char **argv, char **le, char **lc,
 	*lc = "bootstrap/launch-enclave.conf";
 	*qe = "bootstrap/quoting-enclave.sgx"; 
 	*qc = "bootstrap/quoting-enclave.conf";
-	*ik = "user/intel.key";
+	*ik = "conf/intel.key";
 	*optend = 1;
 }
 
@@ -63,8 +65,8 @@ int create_einittoken(einittoken_t *token, sigstruct_t *ss,
 int main(int argc, char **argv)
 {
 	char *testenc, *testconf;
-	sigstruct_t testss, *tmpss;
-	einittoken_t testeit, *tmpeit;
+	sigstruct_t testss __attribute__((aligned(PAGE_SIZE))), *tmpss;
+	einittoken_t testeit __attribute__((aligned(EINITTOKEN_ALIGN_SIZE))), *tmpeit;
 	tcs_t *testtcs;
 	pthread_t ethr;
 	egate_t e;
@@ -76,7 +78,7 @@ int main(int argc, char **argv)
 	/* Parse options */ 
 	parse_options(argc, argv, &launchenc, &launchconf, &quoteenc, 
 		      &quoteconf, &intelkey, &optend);
-	if (optend < argc + 1) {
+	if (optend + 2 < argc) {
 		usage(argv[0]);
 		exit(-1);
 	}
@@ -123,29 +125,28 @@ int main(int argc, char **argv)
 	testtcs = create_elf_enclave(testenc, &testss, &testeit);
 
 	/* Create a gate to run and communicate with the test enclave */
-	egate_init(&e, testtcs, 1);
+	egate_init(&e, testtcs);
 
-	/* Once it's up, we run it launch it *in its own thread* and then
-	 * talk with it asynchronously so that we're not always enter/exiting
-	 * it. */
-	pthread_create(&ethr, NULL, egate_thread, &e);
-	
 	done = 0;
 	while (!done) {
 		int buffer[2048];
 		ecmd_t c;
 		int ret;
-		ret = egate_dequeue(&e, &c, buffer, 2048, ECHAN_FROMENCLAVE); 
-		if (!ret) break;
+		enclave_main(testtcs, exception_handler, &e);
+		/* When we leave the enclave, see what, if anything, it wants
+		 * us to do */
+		ret = egate_user_dequeue(&e, &c, buffer, 2048); 
+		printf("egate_user_dequeue returned %d.\n", ret);
+		if (ret) break;
+		printf("egate_user_dequeue cmd type is %d.\n", c.t);
 		if (c.t <= ECMD_LAST_SYSTEM) {
 			// Handle predefined cmd
-			egate_handle_cmd(&e, &c, buffer, 2048, &done); 
+			egate_user_cmd(&e, &c, buffer, 2048, &done); 
 		} else {
 			printf("User-specific communication from enclave %d.\n",
 				c.t);
 		}
 	}
 
-	pthread_join(ethr, NULL);
 	return 0;
 }

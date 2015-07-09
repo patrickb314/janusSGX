@@ -40,6 +40,9 @@ Current Todo:
 - Fix CSSA setup to actually set it to proper values and still sign correctly in the
   emulator. Once this is done, we can turn on the exception handler check in sgx-entry.S
 - Fix SSA protections to guard enclave stack against overflow
+- Define an actualy sgx_exit that pulls the return address from the base of
+  the stack to go to the right place, but for now still does sgx_exit(0) 
+  given the emulator's strange behavior
 ***
 
 Longer-term issues:

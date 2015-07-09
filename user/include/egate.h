@@ -6,24 +6,24 @@ typedef struct echan echan_t;
 typedef struct egate egate_t;
 
 
-enum echan_type {ECHAN_TOENCLAVE = 0, ECHAN_FROMENCLAVE};
-enum ecmd_type {ECMD_REPORT_REQ = 0, ECMD_RECV, ECMD_SEND, ECMD_PRINT};
+enum echan_type {ECHAN_TO_ENCLAVE = 0, ECHAN_TO_USER};
+enum ecmd_type {ECMD_REPORT_REQ = 0, ECMD_RECV, ECMD_SEND, ECMD_PRINT, ECMD_EXIT};
 typedef enum echan_type echan_type_t;
 typedef enum ecmd_type ecmd_type_t;
 
 #define ECMD_LAST_TOENC EMD_RECV
-#define ECMD_LAST_FROMENC ECMD_PRINT
+#define ECMD_LAST_FROMENC ECMD_EXIT
 #define ECMD_LAST_SYSTEM ECMD_LAST_FROMENC
 
 struct ecmd {
 	ecmd_type_t t;
-	int len; 
+	size_t len; 
 };
 
 #define ECHAN_BUF_SIZE 2048
 struct echan {
-	int cstart, cend;
-	long buffer[ECHAN_BUF_SIZE];
+	int start, end;
+	char buffer[ECHAN_BUF_SIZE];
 };
 
 struct egate {
@@ -31,11 +31,33 @@ struct egate {
 	echan_t channels[2];
 };
 
-int egate_init(egate_t *, tcs_t *tcs, int ntcs);
-int egate_peek(egate_t *, ecmd_t *);
-int egate_dequeue(egate_t *, ecmd_t *, void *buf, int len, echan_type_t dir);
-int egate_enqueue(egate_t *, ecmd_t *);
-int egate_handle_cmd(egate_t *, ecmd_t *, void *buf, int len, int *done);
+static inline int echan_length_internal(int start, int end)
+{
+        if (end >= start)
+                return end - start;
+        else
+                return end + ECHAN_BUF_SIZE - start;
+}
+static inline int echan_length(echan_t *c) {
+        return echan_length_internal(c->start, c->end);
+}
+
+int egate_init(egate_t *, tcs_t *);
+
+int egate_user_peek(egate_t *, ecmd_t *);
+int egate_user_dequeue(egate_t *, ecmd_t *, void *buf, size_t len);
+int egate_user_enqueue(egate_t *, ecmd_t *, void *buf, size_t len);
+
+int egate_user_cmd(egate_t *, ecmd_t *, void *buf, size_t len, int *done);
 void *egate_thread(void *arg);	/* Function to run an encalve in a gate until done. */
+
+int egate_enclave_peek(egate_t *, ecmd_t *);
+int egate_enclave_dequeue(egate_t *, ecmd_t *, void *buf, size_t len);
+int egate_enclave_enqueue(egate_t *, ecmd_t *, void *buf, size_t len);
+
+int egate_enclave_cmd(egate_t *, ecmd_t *, void *buf, size_t len, int *done);
+
+int eg_printf(egate_t *, char *, ...);
+int eg_exit(egate_t *, int);
 
 #endif /* _EGATE_H_ */

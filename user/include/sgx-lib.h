@@ -4,6 +4,15 @@
 #include <sgx-user.h>
 #include <sgx-kern.h>
 
+#define sgx_exit() {                         \
+    asm volatile(".byte 0x0F\n\t"               \
+                 ".byte 0x01\n\t"               \
+                 ".byte 0xd7\n\t"               \
+                 :                              \
+                 :"a"((uint32_t)ENCLU_EEXIT),   \
+		  "b"((uint64_t)0)); 		\
+}
+
 #define sgx_report(tgtinfo, rptdata, output) {  \
     asm volatile("movl %0, %%eax\n\t"           \
                  "movq %1, %%rbx\n\t"           \
