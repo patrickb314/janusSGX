@@ -20,14 +20,12 @@ int echan_init(echan_t *c)
 }
 
 /* Need to add a way for this to use copyin/copyout like semantics */
-static int echan_copytouser(echan_t *c, void *dest, size_t len)
+static int echan_copytouser(echan_t *c, int start, void *dest, size_t len)
 {
 	int cnt = 0;
-	int start = c->start, end = c->end;
+	int end = c->end;
 
 	if (start == end) return -1;
-
-	if (len < echan_length_internal(start, end)) return -1;
 
 	cnt = min(len, ECHAN_BUF_SIZE - start);
 	/* Copy as much as we need towards the end of hte buffer */
@@ -40,20 +38,19 @@ static int echan_copytouser(echan_t *c, void *dest, size_t len)
 	return 0;
 }
 
-/* Peek just givesthe command itself */
+/* Peek just gives the command itself */
 int echan_user_peek(echan_t *c, ecmd_t *r)
 {
-	return echan_copytouser(c, r, sizeof(ecmd_t));
+	return echan_copytouser(c, c->start, r, sizeof(ecmd_t));
 }
 
 int egate_user_dequeue(egate_t *g, ecmd_t *r, void *buf, size_t len)
 {
 	echan_t *c = &g->channels[ECHAN_TO_USER];
-	int ret;
+	int ret, start;
 
-	printf("user-dequeue: channel has start=%d, end=%d.\n", c->start, c->end);
-
-	if (c->start == c->end) {
+	start = c->start;
+	if (start == c->end) {
 		r->t = ECMD_NONE;
 		r->len = 0;
 		return 0;
@@ -62,11 +59,15 @@ int egate_user_dequeue(egate_t *g, ecmd_t *r, void *buf, size_t len)
 	ret = echan_user_peek(c, r);
 	if (ret) return ret;
 
-	printf("user-dequeue: cmd has type=%d, len=%d.\n", r->t, r->len);
-
 	if (r->len > len) return 0;
-	ret = echan_copytouser(c, buf, r->len);
-	c->start = roundup2(c->start + sizeof(ecmd_t) + r->len, 8) % ECHAN_BUF_SIZE;
+
+	/* Now we know we actually have the space to dequeue the full command, 
+	 * so get the data as well and then increment start by the full 
+	 * amount */
+	start += sizeof(ecmd_t);
+	ret = echan_copytouser(c, start, buf, r->len);
+	c->start = roundup2(start + r->len, 8) % ECHAN_BUF_SIZE;
+	
 	return ret;
 }
 

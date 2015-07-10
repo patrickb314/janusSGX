@@ -50,7 +50,8 @@ int egate_enclave_enqueue(egate_t *g, ecmd_t *r, void *buf, size_t len)
 
 	if (r->len > len) return -1;
 
-	if (ECHAN_BUF_SIZE - echan_length_internal(start, end) > r->len) return -1;
+	if ((ECHAN_BUF_SIZE - echan_length_internal(start, end)) 
+	    < (sizeof(ecmd_t) + r->len)) return -1;
 
 	ret = echan_copyfromenclave(c, end, r, sizeof(ecmd_t));
 	if (ret) return ret;
@@ -98,7 +99,7 @@ int eg_printf(egate_t *g, char *fmt, ...)
 int eg_exit(egate_t *g, int val)
 {
 	ecmd_t c;
-	c.t = ECMD_PRINT;
+	c.t = ECMD_EXIT;
 	c.len = sizeof(int);
 	egate_enclave_enqueue(g, &c, &val, sizeof(int));
 	sgx_exit();
