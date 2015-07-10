@@ -21,6 +21,24 @@ static inline int min(int a, int b)
 	return a < b ? a : b;
 }
 
+static int echan_copytoenclave(echan_t *c, int start, void *dest, size_t len)
+{
+        int cnt = 0;
+        int end = c->end;
+
+        if (start == end) return -1;
+
+        cnt = min(len, ECHAN_BUF_SIZE - start);
+        /* Copy as much as we need towards the end of hte buffer */
+        copyin(dest, &c->buffer[start], cnt);
+
+        /* And then get ay part left at the start of the buffer */
+        if (len - cnt > 0) {
+                copyin((char *)dest+cnt, c->buffer, len - cnt);
+        }
+        return 0;
+}
+
 static int echan_copyfromenclave(echan_t *c, int end, void *src, size_t len)
 {
 	int cnt = 0;
@@ -40,6 +58,12 @@ static int echan_copyfromenclave(echan_t *c, int end, void *src, size_t len)
 	}
 
 	return 0;
+}
+
+/* Peek just gives the command itself */
+int echan_enclave_peek(echan_t *c, ecmd_t *r)
+{
+        return echan_copytoenclave(c, c->start, r, sizeof(ecmd_t));
 }
 
 int egate_enclave_enqueue(egate_t *g, ecmd_t *r, void *buf, size_t len)
@@ -66,6 +90,35 @@ int egate_enclave_enqueue(egate_t *g, ecmd_t *r, void *buf, size_t len)
 	c->end = end;
 	return 0;
 }
+
+int egate_enclave_dequeue(egate_t *g, ecmd_t *r, void *buf, size_t len)
+{
+        echan_t *c = &g->channels[ECHAN_TO_USER];
+        int ret, start, end;
+
+        start = c->start;
+	end = c->end;
+        if (start == end) {
+                r->t = ECMD_NONE;
+                r->len = 0;
+                return 0;
+        }
+
+        ret = echan_enclave_peek(c, r);
+        if (ret) return ret;
+
+        if (r->len > len) return 0;
+
+        /* Now we know we actually have the space to dequeue the full command,
+         * so get the data as well and then increment start by the full
+         * amount */
+        start += sizeof(ecmd_t);
+        ret = echan_copytoenclave(c, start, buf, r->len);
+        c->start = roundup2(start + r->len, 8) % ECHAN_BUF_SIZE;
+
+        return ret;
+}
+
 
 int egate_enclave_cmd(egate_t *g, ecmd_t *r, void *buf, size_t len, int *done)
 {
