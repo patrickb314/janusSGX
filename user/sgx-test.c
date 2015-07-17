@@ -49,7 +49,7 @@ int main(int argc, char **argv)
 		exit(-1);
 	}
 
-	fprintf(stdout, "Creating enclave of %d pages at address %p.\n", npages, pages);
+	fprintf(stdout, "Creating enclave of %lu pages at address %p.\n", npages, pages);
     	keid = create_enclave_conf(entry, pages, npages, conf);
 
     	if (syscall_stat_enclave(keid, &stat) < 0)

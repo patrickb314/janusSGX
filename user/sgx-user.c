@@ -99,7 +99,7 @@ void exception_handler(void)
 // (ref re:2.13, EINIT/p88)
 // Set up sigstruct fields require to be signed.
 static
-sigstruct_t *alloc_sigstruct(void)
+sigstruct_t *alloc_sigstruct(int intel)
 {
     sigstruct_t *s = memalign(PAGE_SIZE, sizeof(sigstruct_t));
     if (!s)
@@ -113,8 +113,13 @@ sigstruct_t *alloc_sigstruct(void)
     memcpy(s->header, swap_endian(header, 16), 16);
 
     // VENDOR(4 bytes)
-    // Non-Intel Enclave;
-    s->vendor = 0x00000000;
+    if (intel) {
+	// Intel Enclave
+	s->vendor = 0x8086;
+    } else {
+        // Non-Intel Enclave;
+        s->vendor = 0x00000000;
+    }
 
     // DATE(4 bytes)
     s->date = 0x20150101;
@@ -136,10 +141,14 @@ sigstruct_t *alloc_sigstruct(void)
     memset(&s->attributes, 0, sizeof(attributes_t));
     s->attributes.mode64bit = true;
     s->attributes.provisionkey = true;
-    s->attributes.einittokenkey = false;
+    if (intel) {
+    	s->attributes.einittokenkey = true;
+    } else {
+    	s->attributes.einittokenkey = false;
+    }
     s->attributes.xfrm = 0x03;
 
-    // ATTRIBUTEMAST(16 bytes)
+    // ATTRIBUTEMASK(16 bytes)
     memset(&s->attributeMask, 0 ,sizeof(attributes_t));
     s->attributeMask.mode64bit = true;
     s->attributeMask.provisionkey = true;
@@ -155,37 +164,44 @@ sigstruct_t *alloc_sigstruct(void)
     return s;
 }
 
+int init_einittoken(einittoken_t *t, sigstruct_t *ss, int intel) 
+{
+	/* Check token alignment */
+	if ((unsigned long)t & (EINITTOKEN_ALIGN_SIZE - 1)) return -1;
+
+	memset(t, 0, sizeof(einittoken_t));
+
+	if (ss->vendor == 0x8086) {
+		t->valid = 0x0;
+	} else {
+		t->valid = 0x1;
+	}
+    	// ATTRIBUTES(16 bytes)
+    	memcpy(&t->attributes, &ss->attributes, sizeof(attributes_t));
+    	t->attributes.xfrm |= 0x03;
+
+	// MRENCLAVE(32 bytes)
+	memcpy(&t->mrEnclave, &ss->enclaveHash, sizeof(t->mrEnclave));
+
+	// MRSIGNER(32 bytes)
+	sha256(ss->modulus, KEY_LENGTH, (unsigned char *)&t->mrSigner, 0);
+	return 0;
+}
 
 // Set up einittoken fields require to be signed.
 static
-einittoken_t *alloc_einittoken(rsa_key_t pubkey, sigstruct_t *sigstruct)
+einittoken_t *alloc_einittoken(sigstruct_t *sigstruct)
 {
     einittoken_t *t = memalign(EINITTOKEN_ALIGN_SIZE, sizeof(einittoken_t));
     if (!t)
         return NULL;
 
-    // Initializate with 0s
-    memset(t, 0, sizeof(einittoken_t));
-
-    // VALID(4 bytes)
-    t->valid = 0x00000001;
-
-    // ATTRIBUTES(16 bytes)
-    memset(&t->attributes, 0, sizeof(attributes_t));
-    t->attributes.mode64bit = true;
-    t->attributes.provisionkey = true;
-    t->attributes.einittokenkey = false;
-    t->attributes.xfrm = 0x03;
-
-    // MRENCLAVE(32 bytes)
-    memcpy(&t->mrEnclave, &sigstruct->enclaveHash, sizeof(t->mrEnclave));
-
-    // MRSIGNER(32 bytes)
-    sha256(pubkey, KEY_LENGTH, (unsigned char *)&t->mrSigner, 0);
+    if (init_einittoken(t, sigstruct, false)) {
+	return NULL;
+    }
 
     return t;
 }
-
 
 // (ref re:2.13)
 // Fill the fields not required for signature after signing.
@@ -318,7 +334,7 @@ int create_enclave_conf(void *entry, void *codes, unsigned int n_of_code_pages,
 	rsa_context *ctx = load_rsa_keys("conf/test.key", pubkey, seckey, 
 					 KEY_LENGTH_BITS);
 	// set sigstruct which will be used for signing
-	sigstruct = alloc_sigstruct();
+	sigstruct = alloc_sigstruct(false);
 	if (!sigstruct)
 		err(1, "failed to allocate sigstruct");
 
@@ -333,7 +349,7 @@ int create_enclave_conf(void *entry, void *codes, unsigned int n_of_code_pages,
 	update_sigstruct(sigstruct, pubkey, sig);
 
 	// set einittoken which will be used for MAC
-	token = alloc_einittoken(pubkey, sigstruct);
+	token = alloc_einittoken(sigstruct);
 	if (!token)
        		err(1, "failed to allocate einittoken");
 	free(ctx);

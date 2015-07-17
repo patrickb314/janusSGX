@@ -414,7 +414,6 @@ MAC               : %s",
     free(mac);
 
     return msg;
-    return msg;
 }
 char *dbg_dump_targetinfo(targetinfo_t *t)
 {

@@ -14,7 +14,7 @@ void enclave_main(einittoken_t *inittoken)
 	keyrequest_t keyreq;
 	unsigned char launch_key[128];
 	unsigned char mac[MAC_SIZE];
-	int i, reti;
+	int i;
 	void *retp;
 	
 	memset(inittoken->mac, -1, MAC_SIZE);
@@ -39,7 +39,7 @@ void enclave_main(einittoken_t *inittoken)
 		goto fail;
 	}
 
-#if 0
+#if 1
 	/* Whey does the inittoken for simple enclaves list as
 	 * one with an inittoken key? XXX */
 	memset(inittoken->mac, -5, MAC_SIZE);

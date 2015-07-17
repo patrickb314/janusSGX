@@ -117,7 +117,11 @@ void cmd_gen_sigstruct(char *conf, int intel)
     memcpy(&s.header2, swap_endian(header2, 16), 16);
 
     // For non-intel enclave
-    memset(&s.vendor, 0, 4);
+    if (intel) {
+	s.vendor = 0x00008086; 
+    } else {
+	s.vendor = 0x00000000;
+    }
 
     // Set default value
     memset(&s.swdefined, 0, 4);
@@ -332,8 +336,8 @@ void cmd_gen_einittoken(char *conf)
     int exinfo = 0;
     int debug = 0;
     int mode64bit = 1;
-    int provisionkey = 0;
-    int einittokenkey = 1;
+    int provisionkey = 1;
+    int einittokenkey = 0;
 
     sigstruct_t *s;
     s = load_sigstruct(conf);
@@ -347,6 +351,8 @@ void cmd_gen_einittoken(char *conf)
 	// public key, not a device-specific derived key
 	printf("# Setting valid = 0 to bootstrap an INTEL enclave\n");
 	valid_default[3] = 0x00;
+	einittokenkey = 1;
+	provisionkey = 0;
     }
     // set default value
     memset(t.cpuSvnLE, 0, 16);

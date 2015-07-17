@@ -21,28 +21,46 @@ Current Todo:
     register handling and the user and enclave side exception handling code - DEFERRED
 * Use copyin, copyout, copyenc, and copyuser calls that check where the destination - DONE
   of the copy is.
-   * Create checking code for in/out of enclave
-   * Create copy routines
-   * Switch existing enclaves over to use new copy routines
-+ Get more of PolarSSL running in enclave space - PARTIALLY DONE
-   * AES CMAC for launch token generation - DONE
-   - RSA for quoting enclave signing - NEXT
-   - An entropy source in enclaves (probably implement RDRAND in
-     qemu using /dev/urandom) - DEFERED
-   - SSL/TLS communication primitives from enclaves - DEFERED
-- Create call in with two shared buffers and command structure for it - IN PROGRESS
-  - Get basic enclave gate abstraction set
-  - Get a buffer for output from enclaves that can support the equivalent of 
-    printf
-  - Set up a high-speed communication channel out of the enclave - basically SEND
-    and RECV commands over the shared buffer channel
-- Get an actualy quoting enclave running - DEFERED
-- Fix CSSA setup to actually set it to proper values and still sign correctly in the
-  emulator. Once this is done, we can turn on the exception handler check in sgx-entry.S
+  * Create checking code for in/out of enclave
+  * Create copy routines
+  * Switch existing enclaves over to use new copy routines
+--------------- DONE THROUGH HERE ---------------
++ Get more of SSL/TLS running in enclave space - PARTIALLY DONE
+  * Polar SSL AES CMAC for launch token generation - DONE
+  - Look into switching to libcrypto from boringssl
+  - Look into using s2n for TLS
+  - RSA for quoting enclave signing - TODO
+  - An entropy source in enclaves (probably implement RDRAND instruction in
+    qemu using /dev/urandom) - DEFERED
+  - SSL/TLS communication primitives from enclaves - TODO
++ Create call in with two shared buffers and command structure for it - IN PROGRESS
+  * Get basic enclave gate abstraction set - DONE
+  * Get a buffer for output from enclaves that can support the equivalent of 
+    printf - DONE
+  - Add REPORT_REQ/REPORT_RESP egate events calls for bootstraping, where
+    the user code proxies for the report - TODO
+  - Define a high-speed communication channel out of the enclave - basically 
+    SENDTO/RECVFROM commands over the shared buffer channel - TODO
+  - Add QUOTE_REQ/QUOTE_RESP egate events for enclaves 
++ Bootstrap code - IN PROGRESS
+  * Parse options on startup
+  - Create and save launch tokens
+  - Better basic event loop
+  - Locally attest the 
++ Better runtime support - IN PROGRESS
+  - Get a real bootmem allocator in place 
+  - Change the starting heap size to something decent
++ Get an actual quoting enclave running - DEFERED waiting for RSA above
+--------------- LONGER-TERM AFTER HERE ---------------
+- Fix CSSA setup to actually set it to proper values and still sign correctly 
+  in the emulator. Once this is done, we can turn on the exception handler 
+  check in sgx-entry.S
 - Fix SSA protections to guard enclave stack against overflow
 - Define an actualy sgx_exit that pulls the return address from the base of
   the stack to go to the right place, but for now still does sgx_exit(0) 
   given the emulator's strange behavior
+- Add EAUG support for the heap
+- Reintegrate many changes into GT tree, potentially as a separate runtime?
 ***
 
 Longer-term issues:
@@ -98,7 +116,7 @@ Launch Enclave Design - DONE (except for inittoken consistency checks):
   * Save the inittoken
 - Enclave space
   * Argument 1, the inittoken. 
-  - Do a bunch of consistency checks on the inittoken - INCOMPLETE
+  * Do a bunch of consistency checks on the inittoken 
   * Call EGETKEY to get the launch key
   * Compute the launch token MAC.
   * Save the signature in the initkey
