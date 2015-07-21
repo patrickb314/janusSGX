@@ -49,7 +49,7 @@
 #define NO_OF_TCS_FLAGS          (64)
 #define STACK_PAGE_FRAMES        (40)             // Need to decide how many required
 #define STACK_PAGE_FRAMES_PER_THREAD (6)
-#define HEAP_PAGE_FRAMES         (6)              // Need to decide how many initial Heap pages are required
+#define HEAP_PAGE_FRAMES         (1<<7)           // 512KB initial heap
 
 /// custom format
 #define PRIfptr "0x%016"PRIxPTR

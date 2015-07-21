@@ -16,7 +16,7 @@ Current Todo:
   enclave and then resume after it exits - PARTIALLY DONE
   * Software trampoline should check for recursing into the TCS and call 
     enclave exception code instead so we can't be corrupted that way - DONE
-  - Longer-term the user-side AEP code may want to be able to recurse into the 
+  + Longer-term the user-side AEP code may want to be able to recurse into the 
     enclave so it can handle exceptions. This will also require fixing
     register handling and the user and enclave side exception handling code - DEFERRED
 * Use copyin, copyout, copyenc, and copyuser calls that check where the destination - DONE
@@ -27,8 +27,8 @@ Current Todo:
 --------------- DONE THROUGH HERE ---------------
 + Get more of SSL/TLS running in enclave space - PARTIALLY DONE
   * Polar SSL AES CMAC for launch token generation - DONE
-  - Look into switching to libcrypto from boringssl
-  - Look into using s2n for TLS
+  + Look into switching to libcrypto from boringssl - DEFERRED
+  + Look into using s2n for TLS - DEFERRED
   - RSA for quoting enclave signing - TODO
   - An entropy source in enclaves (probably implement RDRAND instruction in
     qemu using /dev/urandom) - DEFERED
@@ -41,15 +41,17 @@ Current Todo:
     the user code proxies for the report - TODO
   - Define a high-speed communication channel out of the enclave - basically 
     SENDTO/RECVFROM commands over the shared buffer channel - TODO
-  - Add QUOTE_REQ/QUOTE_RESP egate events for enclaves 
+  - Add QUOTE_REQ/QUOTE_RESP egate events for enclaves to request quotes
+    from user code
 + Bootstrap code - IN PROGRESS
   * Parse options on startup
-  - Create and save launch tokens
-  - Better basic event loop
+  * Create and save launch tokens
+  - Switch to running enclave in its own thread
+  - Better basic event loop 
   - Locally attest the 
 + Better runtime support - IN PROGRESS
+  * Change the starting heap size to something decent
   - Get a real bootmem allocator in place 
-  - Change the starting heap size to something decent
 + Get an actual quoting enclave running - DEFERED waiting for RSA above
 --------------- LONGER-TERM AFTER HERE ---------------
 - Fix CSSA setup to actually set it to proper values and still sign correctly 
@@ -64,16 +66,12 @@ Current Todo:
 ***
 
 Longer-term issues:
-   * How do you protect the stack, keeping the untrusted code from finding 
-     a code path that leads to a stack overflow? Done right so that the stack
-     covers part of the SSA, you could then force an AEX and a resume and 
-     you could corrupt enclave state, right? Having to prove or continually 
-     guard against stack overflow is potentially expensive?
+   - No multi-threading in qemu user-level guests (grrr)
    * How much actual sense of time will we have or need in the enclave?
      On real hardware, it's not clear we'll actually get rdtsc, which 
      leaves us only relative time as the host lets us run or whatever we 
      can glean from secure and trusted communication with the outside
-     world.
+     world. What's this mean to the enclave programmer?
 
 ****
 

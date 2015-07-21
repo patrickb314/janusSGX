@@ -1,8 +1,9 @@
-/* Basic framework for actually starting a secure enclave with appropriate communication
- * and such so that it can actually acquire and use secrets and do useful things. */
+/* Basic framework for actually starting a secure enclave with appropriate
+ * communication. Really we'd like to run the enclave in a separate thread,
+ * but qemu doesn't support that right now in user-level emulation.
+ */
 
 #include <getopt.h>
-#include <pthread.h>
 #include <string.h>
 #include <sgx-kern.h>
 #include <sgx-user.h>
@@ -89,7 +90,6 @@ int save_conf(char *conf, sigstruct_t *ss, einittoken_t *token)
 	if (!fp) return -1;
 
 	/* Save the inittoken */
-    	fprintf(stdout, "Saving einittoken.\n"); fflush(stdout);
 	char *s = dbg_dump_einittoken(token);
 	fprintf(fp, "# EINITTOKEN START\n");
 	fprintf(fp, "%s\n", s);
@@ -110,28 +110,15 @@ int create_einittoken(einittoken_t *token, sigstruct_t *ss, char *conf,
 	sigstruct_t *launchss;
 	einittoken_t *launcheit;
 	tcs_t *launchtcs;
-	int ret;
 
-    	fprintf(stdout, "Initializing new einittoken.\n"); fflush(stdout);
 	/* Initialize the token */
-	ret = init_einittoken(token, ss, false);
-	fprintf(stdout, "Einittoken initialized (ret = %d)\n", ret); 
-	fflush(stdout);
+	init_einittoken(token, ss, false);
 
 	/* Load a launch enclave and sign the token */
-	fprintf(stdout, "Loading launch sigstruct %s.\n", launchconf); 
-	fflush(stdout);
         launchss = load_sigstruct(launchconf);
-
-	fprintf(stdout, "Loading launch einittoken %s.\n", launchconf);
-	fflush(stdout);
         launcheit = load_einittoken(launchconf);
-
-    	fprintf(stdout, "Creating launch enclave.\n"); 
-	fflush(stdout);
 	launchtcs = create_elf_enclave(launchenc, launchss, launcheit);
 
-    	fprintf(stdout, "Signing einittoken.\n"); fflush(stdout);
 	sign_einittoken(launchtcs, exception_handler, token);
 
 	return 0;
@@ -163,17 +150,10 @@ int main(int argc, char **argv)
 	/* Register the intel key so that we can load "intel" enclaves, and
 	 * bring up the SGX "hardware" */
     	load_rsa_keys(intelkey, intel_pubkey, intel_seckey, KEY_LENGTH_BITS);
-    	fprintf(stdout, "Read Intel key.\n"); fflush(stdout);
     	sys_sgx_init(intel_pubkey);
-
-	fprintf(stdout, "Options: %s;%s;%s;%s;%s;%s;%s\n",
-		launchenc, launchconf, quoteenc, quoteconf, intelkey, 
-		testenc, testconf); 
-	fflush(stdout);
 
 	/* Get the sigstruct for the test enclave and see if we have an 
 	 * inittoken, too */
-    	fprintf(stdout, "Loading sigstruct.\n"); fflush(stdout);
 	tmpss =  load_sigstruct(testconf);
 	if (!tmpss) {
 		usage(argv[0]);
@@ -182,9 +162,7 @@ int main(int argc, char **argv)
 	testss = *tmpss;
 	free(tmpss);
 
-    	fprintf(stdout, "Loading einittoken.\n"); fflush(stdout);
 	tmpeit = load_einittoken(testconf);
-
 	if (tmpeit) {
 		testeit = *tmpeit;
 		free(tmpeit);
@@ -201,7 +179,7 @@ int main(int argc, char **argv)
 		if (ret) {
 			fprintf(stderr, "Unable to save new launch token.\n");
 		} else {
-			printf("Updated testconf with a launch-enclave signed EIT.\n");
+			printf("Updated %s with a launch-enclave signed EIT.\n", testconf);
 		}
 	}
 
@@ -210,22 +188,18 @@ int main(int argc, char **argv)
 
 	/* Create a gate to run and communicate with the test enclave */
 	egate_init(&e, testtcs);
-
 	done = 0;
 	while (!done) {
 		int buffer[2048];
 		ecmd_t c;
 		int ret;
 
-		/* Run the enclave */
-		enclave_main(testtcs, exception_handler, &e);
+		enclave_main(e.tcs, exception_handler, &e);
 
 		/* When we leave the enclave, see what, if anything, it wants
 		 * us to do */
 		ret = egate_user_dequeue(&e, &c, buffer, 2048); 
-		printf("egate_user_dequeue returned %d.\n", ret);
 		if (ret) break;
-		printf("egate_user_dequeue cmd type is %d.\n", c.t);
 		if (c.t <= ECMD_LAST_SYSTEM) {
 			// Handle predefined cmd
 			egate_user_cmd(&e, &c, buffer, 2048, &done); 

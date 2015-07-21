@@ -152,7 +152,7 @@ int eg_printf(egate_t *g, char *fmt, ...)
 int eg_exit(egate_t *g, int val)
 {
 	ecmd_t c;
-	c.t = ECMD_EXIT;
+	c.t = ECMD_DONE;
 	c.len = sizeof(int);
 	egate_enclave_enqueue(g, &c, &val, sizeof(int));
 	sgx_exit();

@@ -123,7 +123,7 @@ int egate_user_cmd(egate_t *g, ecmd_t *r, void *buf, size_t len, int *done)
 		case ECMD_PRINT:
 			printf("%s", buf);
 			return 0;
-		case ECMD_EXIT:
+		case ECMD_DONE:
 			*done = 1;
 			return 0;
 		case ECMD_NONE:

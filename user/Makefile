@@ -65,9 +65,6 @@ test/%.sgx: test/%.o $(SGX_LIBS)
 demo/%.sgx: demo/%.o $(SGX_OBJS) $(SGX_LIBS)
 	$(CC) $(CFLAGS) -nostdlib -Wl,-T,sgx.lds $< $(SGX_START) -o $@  $(SGX_LDLIBS) -lgcc
 
-bootstrap/%.o: bootstrap/%.c $(HDRS)
-	$(CC) -c $(CFLAGS) -o $@ $<
-
 launch-test: launch-test.o $(SGX_OBJS) $(SSL_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS) -lelf
 
@@ -77,7 +74,10 @@ quote-test: quote-test.o $(SGX_OBJS) $(SSL_OBJS)
 bootstrap-test: bootstrap-test.o $(SGX_OBJS) $(SSL_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS) -lelf -lpthread
 
-bootstrap/%.sgx: bootstrap/%.o $(SGX_OBJS) $(SGX_LIBS) include/quoting-key.h
+bootstrap/%.o: bootstrap/%.c $(HDRS)
+	$(CC) -c $(CFLAGS) -o $@ $<
+
+bootstrap/%.sgx: bootstrap/%.o $(SGX_OBJS) $(SGX_LIBS)
 	$(CC) $(CFLAGS) -nostdlib -Wl,-T,sgx.lds $< -o $@ $(SGX_START) $(SGX_LDLIBS) -lgcc
 
 clean: 
