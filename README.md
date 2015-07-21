@@ -4,24 +4,42 @@ behavior is stripped away and things are closer to what real hardware
 will need. Simple test cases:
 
 1. Build qemu: 
-    - (cd qemu; ./configure-arch; make)
+
+        (cd qemu; ./configure-arch; make)
+
 2. Build enclave-side polarssl:
-    - (cd user/lib/polarssl; make)
+
+        make -C user/lib/polarssl
+
 3. Build rest of enclave fake kernel/user runtime/enclave runtime/example enclave and test code:
-    - (cd user; make)
+
+        make -C user
+
 4. Generate a local key for signing enclaves:
-    - ../opensgx -k
+
+         ../opensgx -k
+
 5. Run a simple enclave test using a fake sigstruct/einittoken that is signs using the user/conf/test.key key and a pre-known launch key:
-    - cd user; ../opensgx user/sgx-test user/test/simple-arg.sgx
+
+        cd user
+        ../opensgx user/sgx-test user/test/simple-arg.sgx
+
 5. Use this key to sign the sigstruct of the test case above using the GT tools (generates user/test/simple-arg.conf, uses a pre-set launch key for making the einittoken)
-    - ../opensgx -s test/simple-arg.sgx --key ../sign.key
+
+        ../opensgx -s test/simple-arg.sgx --key ../sign.key
+
 6. Run using this actual sigstruct and einittokey:
-    - ../opensgx sgx-test test/simple-arg.sgx test/simple-arg.conf
+
+        ../opensgx sgx-test test/simple-arg.sgx test/simple-arg.conf
+
 7. Sign the launch enclave with the "intel" key so it can start up and use egetkey to access the processor launch key:
-    - ../opensgx -s bootstrap/launch-enclave.sgx -I
+
+        ../opensgx -s bootstrap/launch-enclave.sgx -I
+
 8. Run the launch enclave to verify we can generate a proper launch token for a sigstruct using egetkey/etc.
-    - ../opensgx launch-test bootstrap/launch-enclave.sgx bootstrap/launch-enclave.conf conf/intel.key test/simple-arg.conf
-    # Generated einittoken MAC should match what the GT user tools generated with the launch key they'd extracted/generated using by knowing the "hardware fuses".
+
+        ../opensgx launch-test bootstrap/launch-enclave.sgx bootstrap/launch-enclave.conf conf/intel.key test/simple-arg.conf
+        # Generated einittoken MAC should match what the GT user tools generated with the launch key they'd extracted/generated using by knowing the "hardware fuses".
 
 ***
 
