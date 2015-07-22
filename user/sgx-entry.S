@@ -72,7 +72,6 @@
  * C Prototype:
  *       int enclave_start(void);
  */
-/* .section .enc_text */
 ENTRY(enclave_start)
 	/* XXX PGB
 	 * Enter from user-space - entry RSP/RBP are saved in the SSA by EENTER
@@ -104,7 +103,9 @@ ENTRY(enclave_start)
 	/*
 	 * Save registers to trusted stack
 	 */
-	subq $15*8, %rsp		/* Make room on the stack            */
+	subq $512, %rsp			/* Room on stack for FP state        */
+	fxsave (%rsp)		
+	subq  $15*8, %rsp		/* Room on the stack for pt_regs     */
 	movq %rcx, 10*8(%rsp)		/* Save user-space RIP               */
 					/* RAX contained EENTER leaf 	     */
 	movq %rdi,  8*8(%rsp)		/* Save user-space RDI (ARG0)        */
@@ -144,11 +145,17 @@ ENTRY(enclave_start)
 	 */
 	movq %r10, %rcx			/* Per x86_64 C ABI, RCX holds ARG3  */
 	call enclave_main		/* Call the main enclave entry point */
-
     2:
 	/*
-	 * Return to user-space
+	 * Return to user-space - stack needs to be on the entry f
 	 */
+	/* Wiped x64 that won't be restored */
+	movq         $0, %r12
+	movq         $0, %r13
+	movq         $0, %r14
+	movq	     $0, %r15
+	
+	/* Restore callee-save registers from stack frame */
 	movq     (%rsp), %r11		/* Restore RFLAGS for SYSRET         */
 	movq  1*8(%rsp), %r10		/* Restore user-space R10 (ARG3)     */
 	movq  2*8(%rsp), %r9		/* Restore user-space R9  (ARG5)     */
@@ -159,9 +166,13 @@ ENTRY(enclave_start)
 	movq  7*8(%rsp), %rsi		/* Restore user-space RSI (ARG1)     */
 	movq  8*8(%rsp), %rdi		/* Restore user-space RDI (ARG0)     */
 
+	addq  $15*8, %rsp 
+	fxrstor (%rsp)			/* Floating point state 	     */
+
 	movl  $0x04, %eax		/* EEXIT 			     */
-	movq  $0x0, %rbx		/* Should be 10*8(%rsp), but we're   */
-				        /* using the OpenSGX eexit semantics */
+	movq  $0x0, %rbx		/* Should be 10*8(%rsp) before addq  */
+					/* for fp restore, but we're using   */
+					/* OpenSGX eexit semantics for now   */ 
   	.byte 0x0F			/* ENCLU			     */
         .byte 0x01
         .byte 0xd7
