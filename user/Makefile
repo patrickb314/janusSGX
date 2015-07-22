@@ -1,4 +1,4 @@
-SGX_LIBS := sgx-entry.o libsgx.a
+SGX_LIBS := lib/sgx-entry.o libsgx.a
 SGX_RUNTIME := sgx-runtime.o sgx-test-runtime.o
 SGX_OBJS := sgx-user.o sgx-elf.o sgx-kern.o sgx-kern-epc.o sgx-utils.o sgx-signature.o egate-user.o
 SSL_OBJS := polarssl/rsa.o polarssl/entropy.o polarssl/ctr_drbg.o \
@@ -6,12 +6,15 @@ SSL_OBJS := polarssl/rsa.o polarssl/entropy.o polarssl/ctr_drbg.o \
 	polarssl/sha512.o polarssl/aes.o polarssl/entropy_poll.o polarssl/aesni.o \
 	polarssl/timing.o polarssl/md_wrap.o polarssl/sha256.o polarssl/md5.o \
 	polarssl/ripemd160.o polarssl/net.o polarssl/aes_cmac128.o
-SGX_START=sgx-entry.o
+SGX_START=lib/sgx-entry.o
 LDLIBS=-lelf
 SGX_LDLIBS=-L. -lsgx
 
-CFLAGS := -g -Iinclude -Iopenssl/include -Wall -pedantic -Wno-unused-function -std=gnu11 -fno-stack-protector -static -fPIC -fvisibility=hidden
-ASFLAGS := -D__ASSEMBLY__ -Iinclude -Wall -fno-stack-protector -static -fPIC
+BASE_CFLAGS := -g -Iinclude -Iopenssl/include -Wall -pedantic -Wno-unused-function -std=gnu11 
+CFLAGS := $(BASE_CFLAGS)
+ENC_CFLAGS := $(BASE_CFLAGS) -fno-stack-protector -static -fPIC -fvisibility=hidden
+
+ENC_ASFLAGS := -D__ASSEMBLY__ -Iinclude -Wall -fno-stack-protector -static -fPIC
 
 BOOTSTRAP_ENCS = bootstrap/launch-enclave.sgx bootstrap/quoting-enclave.sgx \
 		 bootstrap/attesting-enclave.sgx
@@ -35,17 +38,11 @@ all: $(ALL)
 libsgx.a: $(LIBSGX_OBJS)
 	$(AR) rs $@ $^
 
-lib/%.o: lib/%.c
-	$(CC) -c $(CFLAGS) -o $@ $<
-
 polarssl/%.o: polarssl/%.c
 	$(CC) -c  $(CFLAGS) -o $@ $<
 
 %.o: %.c $(HDRS)
 	$(CC) -c $(CFLAGS) -o $@ $<
-
-%.o: %.S
-	$(CC) -c $(ASFLAGS) -o $@ $<
 
 sgx-tool: sgx-tool.o $(SGX_OBJS) $(SSL_OBJS)
 	$(CC) $^ $(CFLAGS) -o $@ $(LDLIBS)
@@ -56,14 +53,29 @@ sgx-test: sgx-test.o $(SGX_OBJS) $(SSL_OBJS)
 sgx-%.o: sgx-%.c $(HDRS)
 	$(CC)  -c $(CFLAGS) $< -o $@
 
-example1: example1.S
-	$(CC) -nostdlib $< -o $@ $(LDLIBS)
+lib/%.o: lib/%.S
+	$(CC) -c $(ENC_ASFLAGS) -o $@ $<
+
+lib/%.o: lib/%.c
+	$(CC) -c $(ENC_CFLAGS) -o $@ $<
+
+test/%.o: test/%.c
+	$(CC) -c $(ENC_CFLAGS) -o $@ $<
+
+demo/%.o: demo/%.c
+	$(CC) -c $(ENC_CFLAGS) -o $@ $<
+
+bootstrap/%.o: bootstrap/%.c $(HDRS)
+	$(CC) -c $(ENC_CFLAGS) -o $@ $<
 
 test/%.sgx: test/%.o $(SGX_LIBS)
-	$(CC) $(CFLAGS) -nostdlib -Wl,-T,sgx.lds $< $(SGX_START) -o $@  $(SGX_LDLIBS) -lgcc
+	$(CC) $(ENC_CFLAGS) -nostdlib -Wl,-T,sgx.lds $< $(SGX_START) -o $@  $(SGX_LDLIBS) -lgcc
 
 demo/%.sgx: demo/%.o $(SGX_OBJS) $(SGX_LIBS)
-	$(CC) $(CFLAGS) -nostdlib -Wl,-T,sgx.lds $< $(SGX_START) -o $@  $(SGX_LDLIBS) -lgcc
+	$(CC) $(ENC_CFLAGS) -nostdlib -Wl,-T,sgx.lds $< $(SGX_START) -o $@  $(SGX_LDLIBS) -lgcc
+
+bootstrap/%.sgx: bootstrap/%.o $(SGX_OBJS) $(SGX_LIBS)
+	$(CC) $(ENC_CFLAGS) -nostdlib -Wl,-T,sgx.lds $< $(SGX_START) -o $@  $(SGX_LDLIBS) -lgcc
 
 launch-test: launch-test.o $(SGX_OBJS) $(SSL_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS) -lelf
@@ -73,12 +85,6 @@ quote-test: quote-test.o $(SGX_OBJS) $(SSL_OBJS)
 
 bootstrap-test: bootstrap-test.o $(SGX_OBJS) $(SSL_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS) -lelf -lpthread
-
-bootstrap/%.o: bootstrap/%.c $(HDRS)
-	$(CC) -c $(CFLAGS) -o $@ $<
-
-bootstrap/%.sgx: bootstrap/%.o $(SGX_OBJS) $(SGX_LIBS)
-	$(CC) $(CFLAGS) -nostdlib -Wl,-T,sgx.lds $< -o $@ $(SGX_START) $(SGX_LDLIBS) -lgcc
 
 clean: 
 	rm -f polarssl/*.o *.o $(ALL)
