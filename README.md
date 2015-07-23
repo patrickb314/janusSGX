@@ -17,12 +17,12 @@ will need. Simple test cases:
 
 4. Generate a local key for signing enclaves:
 
-         ../opensgx -k
+         ./opensgx -k
 
 5. Run a simple enclave test using a fake sigstruct/einittoken that is signs using the user/conf/test.key key and a pre-known launch key:
 
         cd user
-        ../opensgx user/sgx-test user/test/simple-arg.sgx
+        ../opensgx ./sgx-test ./test/simple-arg.sgx
 
 5. Use this key to sign the sigstruct of the test case above using the GT tools (generates user/test/simple-arg.conf, uses a pre-set launch key for making the einittoken)
 
