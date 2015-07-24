@@ -47,8 +47,11 @@
 #define MAC_SIZE                 (16)
 #define DSLIMIT                  (4294967295)     //!< 2^32-1 -> 2^32 => overflow
 #define NO_OF_TCS_FLAGS          (64)
-#define STACK_PAGE_FRAMES        (40)             // Need to decide how many required
-#define STACK_PAGE_FRAMES_PER_THREAD (6)
+// #define STACK_PAGE_FRAMES        (40)          // Need to decide how many required
+#define TCS_PER_ENCLAVE		  (6)
+#define STACK_PAGE_FRAMES_PER_TCS (STACK_PAGE_FRAMES_PER_SSA * NSSA_PER_TCS)
+#define NSSA_PER_TCS	  	  (6)
+#define STACK_PAGE_FRAMES_PER_SSA (4)
 #define HEAP_PAGE_FRAMES         (1<<7)           // 512KB initial heap
 
 /// custom format

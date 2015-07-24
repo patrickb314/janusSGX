@@ -181,7 +181,7 @@ secs_t *alloc_secs(uint64_t enclave_addr, uint64_t enclave_size, bool intel_flag
     memset(secs, 0, sizeof(secs_t));
 
     // XXX. set ssaFramesize, currently use it as 1 temporarily
-    secs->ssaFrameSize         = 1;
+    secs->ssaFrameSize         = STACK_PAGE_FRAMES_PER_SSA;
     secs->attributes.mode64bit = true;
     secs->attributes.debug     = false;
     secs->attributes.xfrm      = 0x03;
@@ -414,7 +414,7 @@ int syscall_create_enclave(void *entry, void *code, unsigned int code_pages,
     int sec_npages  = 1;
     int tcs_npages  = 1;
     int tls_npages  = get_tls_npages(tcs);
-    int ssa_npages  = STACK_PAGE_FRAMES_PER_THREAD;
+    int ssa_npages  = STACK_PAGE_FRAMES_PER_TCS;
     int heap_npages = HEAP_PAGE_FRAMES;
     int npages = sec_npages + tcs_npages + tls_npages \
         + code_pages + ssa_npages + heap_npages;

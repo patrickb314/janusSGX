@@ -126,12 +126,15 @@ int create_einittoken(einittoken_t *token, sigstruct_t *ss, char *conf,
 
 int main(int argc, char **argv)
 {
-	char *testenc, *testconf;
+	char *testenc, *testconf, tmpname[64];
 	sigstruct_t testss __attribute__((aligned(PAGE_SIZE))), *tmpss;
 	einittoken_t testeit __attribute__((aligned(EINITTOKEN_ALIGN_SIZE))), *tmpeit;
 	tcs_t *testtcs;
 	egate_t e;
-	int done;
+	echan_t *pchan[2];
+	int fd;
+	echan_t *channels;
+	int zero;
 	char *launchenc, *launchconf, *quoteenc, *quoteconf, *intelkey;
 	unsigned char intel_pubkey[KEY_LENGTH], intel_seckey[KEY_LENGTH];
 	int optend, ret;
@@ -150,6 +153,7 @@ int main(int argc, char **argv)
 	/* Register the intel key so that we can load "intel" enclaves, and
 	 * bring up the SGX "hardware" */
     	load_rsa_keys(intelkey, intel_pubkey, intel_seckey, KEY_LENGTH_BITS);
+
     	sys_sgx_init(intel_pubkey);
 
 	/* Get the sigstruct for the test enclave and see if we have an 
@@ -187,27 +191,32 @@ int main(int argc, char **argv)
 	testtcs = create_elf_enclave(testenc, &testss, &testeit);
 
 	/* Create a gate to run and communicate with the test enclave */
-	egate_init(&e, testtcs);
-	done = 0;
-	while (!done) {
-		int buffer[2048];
-		ecmd_t c;
-		int ret;
-
-		enclave_main(e.tcs, exception_handler, &e);
-
-		/* When we leave the enclave, see what, if anything, it wants
-		 * us to do */
-		ret = egate_user_dequeue(&e, &c, buffer, 2048); 
-		if (ret) break;
-		if (c.t <= ECMD_LAST_SYSTEM) {
-			// Handle predefined cmd
-			egate_user_cmd(&e, &c, buffer, 2048, &done); 
-		} else {
-			printf("User-specific communication from enclave %d.\n",
-				c.t);
-		}
+	strcpy(tmpname, "/tmp/echan.XXXXXX");
+	fd = mkstemp(tmpname);
+	lseek(fd, 2*sizeof(echan_t), SEEK_SET);
+	write(fd, &zero, sizeof(zero));
+	if (fd < 0) {
+		perror("mkstemp");
+		exit(-1);
 	}
 
+	
+	channels = mmap(NULL, 2*sizeof(echan_t), PROT_READ|PROT_WRITE, MAP_SHARED,
+			fd, 0);
+	if (!channels) {
+		perror("mmap");
+		exit(-1);
+	}
+	close(fd);
+	pchan[0] = channels;
+	echan_init(pchan[0]);
+	pchan[1] = channels + 1;
+	echan_init(pchan[1]); 
+
+	egate_init(&e, testtcs, pchan);
+	fprintf(stdout, "Start egate-proxy for file %s \n", tmpname);
+	fflush(stdout);
+	enclave_main(e.tcs, exception_handler, &e);
+	
 	return 0;
 }

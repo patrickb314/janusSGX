@@ -68,7 +68,7 @@ int echan_enclave_peek(echan_t *c, ecmd_t *r)
 
 int egate_enclave_enqueue(egate_t *g, ecmd_t *r, void *buf, size_t len)
 {
-	echan_t *c = &g->channels[ECHAN_TO_USER];
+	echan_t *c = g->channels[ECHAN_TO_USER];
 	int start = c->start, end = c->end;
 	int ret;
 
@@ -93,7 +93,7 @@ int egate_enclave_enqueue(egate_t *g, ecmd_t *r, void *buf, size_t len)
 
 int egate_enclave_dequeue(egate_t *g, ecmd_t *r, void *buf, size_t len)
 {
-        echan_t *c = &g->channels[ECHAN_TO_USER];
+        echan_t *c = g->channels[ECHAN_TO_USER];
         int ret, start, end;
 
         start = c->start;

@@ -27,7 +27,7 @@ static int echan_copyfromuser(echan_t *c, int end, void *src, size_t len)
         end = end % ECHAN_BUF_SIZE;
 
         cnt = min(len, ECHAN_BUF_SIZE - end);
-        /* Copy as much as we need towards the end of hte buffer */
+        /* Copy as much as we need towards the end of the buffer */
         retp = memcpy(&c->buffer[end], src, cnt);
         if (!retp) return -1;
 
@@ -67,7 +67,7 @@ int echan_user_peek(echan_t *c, ecmd_t *r)
 
 int egate_user_dequeue(egate_t *g, ecmd_t *r, void *buf, size_t len)
 {
-	echan_t *c = &g->channels[ECHAN_TO_USER];
+	echan_t *c = g->channels[ECHAN_TO_USER];
 	int ret, start;
 
 	start = c->start;
@@ -94,7 +94,7 @@ int egate_user_dequeue(egate_t *g, ecmd_t *r, void *buf, size_t len)
 
 int egate_user_enqueue(egate_t *g, ecmd_t *r, void *buf, size_t len)
 {
-        echan_t *c = &g->channels[ECHAN_TO_USER];
+        echan_t *c = g->channels[ECHAN_TO_USER];
         int start = c->start, end = c->end;
         int ret;
 
@@ -134,10 +134,10 @@ int egate_user_cmd(egate_t *g, ecmd_t *r, void *buf, size_t len, int *done)
 	return 0;
 }
 
-int egate_init(egate_t *g, tcs_t *tcs)
+int egate_init(egate_t *g, tcs_t *tcs, echan_t *channels[2])
 {
 	g->tcs = tcs;
-	echan_init(&g->channels[ECHAN_TO_ENCLAVE]);
-	echan_init(&g->channels[ECHAN_TO_USER]);
+	g->channels[0] = channels[0];
+	g->channels[1] = channels[1];
 	return 0;
 }

@@ -10,7 +10,7 @@ SGX_START=lib/sgx-entry.o
 LDLIBS=-lelf
 SGX_LDLIBS=-L. -lsgx
 
-BASE_CFLAGS := -g -Iinclude -Iopenssl/include -Wall -pedantic -Wno-unused-function -std=gnu11 
+BASE_CFLAGS := -g -Iinclude -Wall -pedantic -Wno-unused-function -std=gnu11 
 CFLAGS := $(BASE_CFLAGS)
 ENC_CFLAGS := $(BASE_CFLAGS) -fno-stack-protector -static -fPIC -fvisibility=hidden
 
@@ -30,7 +30,8 @@ LIBSGX_OBJS := $(patsubst %.c,%.o,$(wildcard lib/*.c)) $(SSL_CRYPTO_OBJS)
 HDRS := $(wildcard include/sgx*.h)
 BINS := $(patsubst %.c,%.sgx,$(wildcard test/*.c)) \
         $(patsubst %.c,%.sgx,$(wildcard demo/*.c)) \
-	quote-test launch-test sgx-test bootstrap-test
+	quote-test launch-test sgx-test bootstrap-test \
+	egate-proxy
 ALL  := $(BINS) $(BOOTSTRAP_ENCS) sgx-tool
 
 all: $(ALL)
@@ -48,6 +49,9 @@ sgx-tool: sgx-tool.o $(SGX_OBJS) $(SSL_OBJS)
 	$(CC) $^ $(CFLAGS) -o $@ $(LDLIBS)
 
 sgx-test: sgx-test.o $(SGX_OBJS) $(SSL_OBJS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS) -lelf
+
+egate-proxy: egate-proxy.o $(SGX_OBJS) $(SSL_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
 
 sgx-%.o: sgx-%.c $(HDRS)
@@ -84,7 +88,7 @@ quote-test: quote-test.o $(SGX_OBJS) $(SSL_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS) -lelf
 
 bootstrap-test: bootstrap-test.o $(SGX_OBJS) $(SSL_OBJS)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS) -lelf -lpthread
+	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS) -lelf
 
 clean: 
 	rm -f polarssl/*.o *.o $(ALL)

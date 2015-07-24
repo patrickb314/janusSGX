@@ -27,7 +27,7 @@ struct ecmd {
 	size_t len; 
 };
 
-#define ECHAN_BUF_SIZE 2048
+#define ECHAN_BUF_SIZE 2040
 struct echan {
 	int start, end;
 	char buffer[ECHAN_BUF_SIZE];
@@ -35,7 +35,7 @@ struct echan {
 
 struct egate {
 	tcs_t *tcs;
-	echan_t channels[2];
+	echan_t *channels[2];
 };
 
 static inline int echan_length_internal(int start, int end)
@@ -49,7 +49,8 @@ static inline int echan_length(echan_t *c) {
         return echan_length_internal(c->start, c->end);
 }
 
-int egate_init(egate_t *, tcs_t *);
+int echan_init(echan_t *);
+int egate_init(egate_t *, tcs_t *, echan_t *channels[2]);
 
 int egate_user_peek(egate_t *, ecmd_t *);
 int egate_user_dequeue(egate_t *, ecmd_t *, void *buf, size_t len);
