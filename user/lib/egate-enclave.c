@@ -142,7 +142,7 @@ int eg_printf(egate_t *g, char *fmt, ...)
 	if (!len) return 0;
 
 	c.t = ECMD_PRINT;
-	c.len = len;
+	c.len = len + 1; // +1 for trailing null
 	ret = egate_enclave_enqueue(g, &c, buf, 512);
 	if (ret) return -1;
 	

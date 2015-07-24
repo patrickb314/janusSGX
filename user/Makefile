@@ -6,6 +6,7 @@ SSL_OBJS := polarssl/rsa.o polarssl/entropy.o polarssl/ctr_drbg.o \
 	polarssl/sha512.o polarssl/aes.o polarssl/entropy_poll.o polarssl/aesni.o \
 	polarssl/timing.o polarssl/md_wrap.o polarssl/sha256.o polarssl/md5.o \
 	polarssl/ripemd160.o polarssl/net.o polarssl/aes_cmac128.o
+OPENSGX = ../opensgx
 SGX_START=lib/sgx-entry.o
 LDLIBS=-lelf
 SGX_LDLIBS=-L. -lsgx
@@ -16,8 +17,9 @@ ENC_CFLAGS := $(BASE_CFLAGS) -fno-stack-protector -static -fPIC -fvisibility=hid
 
 ENC_ASFLAGS := -D__ASSEMBLY__ -Iinclude -Wall -fno-stack-protector -static -fPIC
 
-BOOTSTRAP_ENCS = bootstrap/launch-enclave.sgx bootstrap/quoting-enclave.sgx \
-		 bootstrap/attesting-enclave.sgx
+BOOTSTRAP_ENCS = bootstrap/launch-enclave.sgx bootstrap/launch-enclave.conf \
+		 bootstrap/quoting-enclave.sgx bootstrap/quoting-enclave.conf 
+# bootstrap/test-enclave.sgx bootstrap/test-enclave.conf
 
 SSL_CRYPTO_OBJS := lib/polarssl/aes.o lib/polarssl/aesni.o  \
 	lib/polarssl/aes_cmac128.o lib/polarssl/bignum.o \
@@ -80,6 +82,15 @@ demo/%.sgx: demo/%.o $(SGX_OBJS) $(SGX_LIBS)
 
 bootstrap/%.sgx: bootstrap/%.o $(SGX_OBJS) $(SGX_LIBS)
 	$(CC) $(ENC_CFLAGS) -nostdlib -Wl,-T,sgx.lds $< $(SGX_START) -o $@  $(SGX_LDLIBS) -lgcc
+
+bootstrap/launch-enclave.conf: bootstrap/launch-enclave.sgx sgx-tool
+	$(OPENSGX) -s $^ -I
+
+bootstrap/quoting-enclave.conf: bootstrap/quoting-enclave.sgx sgx-tool
+	$(OPENSGX) -s $^ -I
+
+bootstrap/%.conf: bootstrap/%.sgx $(SGXTOOL)
+	$(OPENSGX) -s $^ --key ../sign.key
 
 launch-test: launch-test.o $(SGX_OBJS) $(SSL_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS) -lelf
