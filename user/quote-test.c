@@ -98,10 +98,14 @@ int main(int argc, char **argv)
 
 	memset(&r, 1, sizeof(report_t));
 
+	fprintf(stdout, "Created report request.\n"); fflush(stdout);
+	fprintf(stdout, "Requesting report.\n"); fflush(stdout);
+
 	/* And get the report */
 	request_report(test_tcs, exception_handler,
 		       &t, nonce, &r);
 
+	fprintf(stdout, "Requesting quote.\n"); fflush(stdout);
 	/* Now get a quote from the report */
 	request_quote(quote_tcs, exception_handler,
 		      &r, &q);

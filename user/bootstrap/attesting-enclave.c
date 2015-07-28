@@ -21,11 +21,6 @@ void enclave_main(targetinfo_t *dest_enc, unsigned char *nonce,
 	/* Generate a report for the target enclave */
 	sgx_report(&t, n, &r);
 
-	/* Copy out the generated report. Should we check that 
-	 * report is *not* in this enclave? Basically, do we need a
-	 * proper copyout? Probably we should check this; otherwise
-	 * user space could give us an address here to try and get
-	 * us to corrupt ourself? */
 	copyout(report, &r, sizeof(report_t));
 	return;
 }

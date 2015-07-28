@@ -20,6 +20,7 @@ ENC_ASFLAGS := -D__ASSEMBLY__ -Iinclude -Wall -fno-stack-protector -static -fPIC
 
 BOOTSTRAP_ENCS = bootstrap/launch-enclave.sgx bootstrap/launch-enclave.conf \
 		 bootstrap/quoting-enclave.sgx bootstrap/quoting-enclave.conf \
+		 bootstrap/attesting-enclave.sgx bootstrap/attesting-enclave.conf \
 		bootstrap/test-enclave.sgx bootstrap/test-enclave.conf
 
 HDRS := $(wildcard include/sgx*.h)
@@ -44,7 +45,7 @@ sgx-tool: sgx-tool.o $(SGX_OBJS) $(SSL_OBJS)
 	$(CC) $^ $(CFLAGS) -o $@ $(LDLIBS)
 
 sgx-test: sgx-test.o $(SGX_OBJS) $(SSL_OBJS)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS) -lelf
+	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
 
 egate-proxy: egate-proxy.o $(SGX_OBJS) $(SSL_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)

@@ -18,6 +18,7 @@
  */
 
 #include <sgx-lib.h>
+#include <polarssl/pk.h>
 
 int verify_report(report_t *report)
 {
@@ -45,30 +46,30 @@ int verify_report(report_t *report)
 	return 0;
 }
 
+char *quoting_key = "-----BEGIN PRIVATE KEY-----\n"
+"MIICdgIBADANBgkqhkiG9w0BAQEFAASCAmAwggJcAgEAAoGBANz3dKRct1i5Zdty\n"
+"njID/t2VdJEQNlUZ4SH4TYypDSs//eTheYskPIXIshW4ynstTeHN2iZEdF4qqFTJ\n"
+"4IcrYgtK5wF6eMiLNSw78UWjObJZ9W830cRWJJNDzDnfvPkLE4F53r+IcumHb8nf\n"
+"E9W/qwz4LqKpZ5srZbQRmdosy9HhAgMBAAECgYEAhZBWQxt///Ng7DrmAJmFru6u\n"
+"HRlNnjccbGoohgORYDk4AOeBjmeC5eMgMh0W10nVL848NLFgHaNvSIEWZN4GTmlN\n"
+"G9QqZmUSZpKNKFeIlsmRtL413v3cKCfA0wm9xuQKFmJr8cyMQwDmJLNVxmbX+6YX\n"
+"WMwo9QMtqPadt5cEIdkCQQD5Amg+Qp+gZWzi1XUxo6Ow04Uu0w7xyPLZ8KmrXUZ3\n"
+"X2fkAiY3Qp4UcDS4eER7/rsJ5arsYCxEtcC7LDACUH+DAkEA4yuCXPYZ7Y8w1Xwp\n"
+"itJ3IVRHovNGfJjnEtRExbGzaxMlR2tge+Q8Ud1piIJnmp2BT/ayNOGveN/f3wZ/\n"
+"jGNnywJAS7trsOPaYJH4V9TL29kFA9aQ/vi55tdS5O3I7JFlyRB/LF1q+guMwHKP\n"
+"1jrduUhz4kKzhUiKrisI/uQlhc6tuQJAAVaGRAnnCTEotnkuvXST4wxeB6WrKpyz\n"
+"77Z0WT28ssrAE3Wccd5cRJcrQfSSq6R12IS5c/pIUEvxQ50EL01+lQJACnARLTmm\n"
+"EPAjYgpzMaI1y/jjoJsYuW32T9Ai2fCS6KyGtFtk+Z/ptO1gJPMQNDhLz351QKRT\n"
+"TxHQ0wmh08tb9Q==\n"
+"-----END PRIVATE KEY-----";
 void sign_quote(quote_t *q)
 {
-	/* We don't actually sign the quote yet. We need to get RSA working,
-	 * and a way to get the private key to use for it */
-#if 0
-	keyrequest_t keyreq;
-
-	unsigned char launch_key[DEVICE_KEY_LENGTH];
-
-	/* Get the platform launch key. */
-        memset(&keyreq, 0, sizeof(keyreq));
-        keyreq.keyname = LAUNCH_KEY;
-        memset(keyreq.cpusvn, 0, 16);
-        keyreq.isvsvn = 0;
-        memset(&keyreq.keyid, 0, 32);
-        sgx_getkey(&keyreq, launch_key);
-
-	/* Get the quoting key and sign. */
-	decrypt_quoting_key(&ctx, launch_key, crypt_quoting_key);
-
-	/* Now we wouldsign that thing... */
-	rsa_sign(&ctx, (unsigned char *)&q->report, 384,
-		       (unsigned char *)q->sig);
-#endif
+	pk_context ctx;
+	pk_parse_key(&ctx, (unsigned char *)quoting_key, 
+		     strlen(quoting_key), NULL, 0);
+	rsa_sign(pk_rsa(ctx), (unsigned char *)&q->report, 384,
+                 (unsigned char *)q->sig);
+	pk_free(&ctx);
 	return;
 }
 

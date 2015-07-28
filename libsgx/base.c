@@ -201,6 +201,29 @@ void *memmove(void *dest, const void *src, size_t size)
 	return dest;
 }
 
+/* Naive, slow but simple implementaiton of strstr */
+char *strstr(const char *s1, const char *s2)
+{
+	const char *s = s1;
+	const char *p = s2;
+
+	do {
+		if (!*p) {
+			return (char *) s1;;
+		}
+		if (*p == *s) {
+			++p;
+			++s;
+		} else {
+			p = s2;
+			if (!*s) {
+				return NULL;
+			}
+			s = ++s1;
+		}
+	} while (1);
+}
+
 void enclave_exception (void *prev_cssa)
 {
 	// For now, just return to the trampoline, which will eexit out

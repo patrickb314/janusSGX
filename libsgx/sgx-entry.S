@@ -19,8 +19,8 @@
 #define PAGE_SHIFT              12
 #define PAGE_SIZE               (1 << PAGE_SHIFT)
 
-#define SSA_FRAME_PAGES		1
-#define SSA_FRAME_SHIFT		(PAGE_SHIFT + (SSA_FRAME_PAGES - 1))
+/* 4 pages per SSA, last eventually write-protected */
+#define SSA_FRAME_SHIFT		(PAGE_SHIFT + 2)
 #define SSA_FRAME_SIZE		(1 << SSA_FRAME_SHIFT)
 #define SSA_FRAME_MASK		(~((1 << SSA_FRAME_SHIFT) - 1))
 /**
@@ -79,26 +79,25 @@ ENTRY(enclave_start)
 	 * the right place in the SSA given the info we have. The real trick is 
 	 * that we can't actually read what's in the TCS on real hardware, the
 	 * code/data is between us and the SSA in the GT/KAIST TCS/code/SSA/Heap
-	 * layout. Switching to a code/TCS/SSA/Heap layout would help because it
-	 * would be easier to find * the stack (and the heap!). Also, the TLS 
-	 * area will also go into the SSA, which will need to be larger.
+	 * layout. If each SSA area is placed next to it's SSA, on the other hand,
+         * it would be easier to find the stack (and the heap!).
 	 *
 	 * Right now what we do assumes the TCS is readable, which it is in
  	 * simulator. As a result we can find the enclave base using the entry 
 	 * offset in the TCS, and then the SSA from there. The other alternative
 	 * is to rely on linker symbols to find the end of the code thus the 
-	 * start of the SSA areas. The trick there is knowning how many TCSes
+	 * start of the SSA areas. The problem there is knowning how many TCSes
 	 * there are...
 	 */
 	/* First, find the base of the enclave */
-	lea enclave_start(%rip), %rsp		/* TCS addr to RSP */
-	subq 32(%rbx), %rsp
+	lea enclave_start(%rip), %rsp		
+	subq 32(%rbx), %rsp			
 	/* Now find the base of the SSA for this TCS */
 	addq 16(%rbx), %rsp			/* Get to start of SSA */
 	/* And then get to the end of the CSSA */
-	shlq $SSA_FRAME_SHIFT, %rax		
+	shlq $(SSA_FRAME_SHIFT), %rax		
 	addq %rax, %rsp	 
-	addq $(PAGE_SIZE), %rsp			/* Stack at end of curr ssa */
+	addq $(SSA_FRAME_SIZE), %rsp		/* Stack at end of curr ssa */
 
 	/*
 	 * Save registers to trusted stack
@@ -149,7 +148,7 @@ ENTRY(enclave_start)
 	/*
 	 * Return to user-space - stack needs to be on the entry f
 	 */
-	/* Wiped x64 that won't be restored */
+	/* Wipe x64 registers that won't be restored */
 	movq         $0, %r12
 	movq         $0, %r13
 	movq         $0, %r14
