@@ -103,6 +103,6 @@
 #define POLARSSL_X509_CRT_WRITE_C
 #define POLARSSL_X509_CSR_WRITE_C
 
-#include "check_config.h"
+#include "polarssl/check_config.h"
 
 #endif /* POLARSSL_CONFIG_H */
