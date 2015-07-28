@@ -7,9 +7,9 @@ will need. Simple test cases:
 
         (cd qemu; ./configure-arch; make)
 
-2. Build enclave-side polarssl:
+2. Build libsgx and mbedtls (currently using stock mbed TLS 1.3.11)
 
-        make -C user/lib/polarssl
+        make -C libsgx
 
 3. Build rest of enclave fake kernel/user runtime/enclave runtime/example enclave and test code:
 
