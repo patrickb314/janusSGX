@@ -1,4 +1,3 @@
-SGX_LIBS := lib/sgx-entry.o libsgx.a
 SGX_RUNTIME := sgx-runtime.o sgx-test-runtime.o
 SGX_OBJS := sgx-user.o sgx-elf.o sgx-kern.o sgx-kern-epc.o sgx-utils.o sgx-signature.o egate-user.o
 SSL_OBJS := polarssl/rsa.o polarssl/entropy.o polarssl/ctr_drbg.o \
@@ -6,28 +5,22 @@ SSL_OBJS := polarssl/rsa.o polarssl/entropy.o polarssl/ctr_drbg.o \
 	polarssl/sha512.o polarssl/aes.o polarssl/entropy_poll.o polarssl/aesni.o \
 	polarssl/timing.o polarssl/md_wrap.o polarssl/sha256.o polarssl/md5.o \
 	polarssl/ripemd160.o polarssl/net.o polarssl/aes_cmac128.o
+SGX_START=$(LIBSGXDIR)/sgx-entry.o
 OPENSGX = ../opensgx
-SGX_START=lib/sgx-entry.o
 LDLIBS=-lelf
-SGX_LDLIBS=-L. -lsgx
+
+LIBSGXDIR=../libsgx
+SGX_LDLIBS=-L. -L$(LIBSGXDIR) -lsgx -lpolarssl -lsgx
+SGX_LIBS=$(LIBSGXDIR)/libpolarssl.a $(LIBSGXDIR)/libsgx.a $(LIBSGXDIR)/sgx-entry.o 
 
 BASE_CFLAGS := -g -Iinclude -Wall -pedantic -Wno-unused-function -std=gnu11 
 CFLAGS := $(BASE_CFLAGS)
-ENC_CFLAGS := $(BASE_CFLAGS) -fno-stack-protector -static -fPIC -fvisibility=hidden
-
+ENC_CFLAGS := $(BASE_CFLAGS) -I$(LIBSGXDIR)/include -fno-stack-protector -static -fPIC -fvisibility=hidden
 ENC_ASFLAGS := -D__ASSEMBLY__ -Iinclude -Wall -fno-stack-protector -static -fPIC
 
 BOOTSTRAP_ENCS = bootstrap/launch-enclave.sgx bootstrap/launch-enclave.conf \
-		 bootstrap/quoting-enclave.sgx bootstrap/quoting-enclave.conf 
-# bootstrap/test-enclave.sgx bootstrap/test-enclave.conf
-
-SSL_CRYPTO_OBJS := lib/polarssl/aes.o lib/polarssl/aesni.o  \
-	lib/polarssl/aes_cmac128.o lib/polarssl/bignum.o \
-	lib/polarssl/rsa.o lib/polarssl/md.o lib/polarssl/md_wrap.o\
-	lib/polarssl/sha1.o lib/polarssl/md5.o lib/polarssl/sha256.o \
-	lib/polarssl/sha512.o \
-	lib/polarssl/oid.o lib/polarssl/asn1parse.o 
-LIBSGX_OBJS := $(patsubst %.c,%.o,$(wildcard lib/*.c)) $(SSL_CRYPTO_OBJS)
+		 bootstrap/quoting-enclave.sgx bootstrap/quoting-enclave.conf \
+		bootstrap/test-enclave.sgx bootstrap/test-enclave.conf
 
 HDRS := $(wildcard include/sgx*.h)
 BINS := $(patsubst %.c,%.sgx,$(wildcard test/*.c)) \
@@ -59,12 +52,6 @@ egate-proxy: egate-proxy.o $(SGX_OBJS) $(SSL_OBJS)
 sgx-%.o: sgx-%.c $(HDRS)
 	$(CC)  -c $(CFLAGS) $< -o $@
 
-lib/%.o: lib/%.S
-	$(CC) -c $(ENC_ASFLAGS) -o $@ $<
-
-lib/%.o: lib/%.c
-	$(CC) -c $(ENC_CFLAGS) -o $@ $<
-
 test/%.o: test/%.c
 	$(CC) -c $(ENC_CFLAGS) -o $@ $<
 
@@ -84,10 +71,10 @@ bootstrap/%.sgx: bootstrap/%.o $(SGX_OBJS) $(SGX_LIBS)
 	$(CC) $(ENC_CFLAGS) -nostdlib -Wl,-T,sgx.lds $< $(SGX_START) -o $@  $(SGX_LDLIBS) -lgcc
 
 bootstrap/launch-enclave.conf: bootstrap/launch-enclave.sgx sgx-tool
-	$(OPENSGX) -s $^ -I
+	$(OPENSGX) -s $< -I
 
 bootstrap/quoting-enclave.conf: bootstrap/quoting-enclave.sgx sgx-tool
-	$(OPENSGX) -s $^ -I
+	$(OPENSGX) -s $< -I
 
 bootstrap/%.conf: bootstrap/%.sgx $(SGXTOOL)
 	$(OPENSGX) -s $^ --key ../sign.key

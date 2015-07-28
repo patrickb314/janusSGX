@@ -9,21 +9,35 @@ typedef struct egate egate_t;
 enum echan_type {ECHAN_TO_ENCLAVE = 0, ECHAN_TO_USER};
 enum ecmd_type {ECMD_NONE = 0, 
 		/* From user to enclave */
-		ECMD_REPORT_REQ, ECMD_QUOTE_RESP, ECMD_RECV_RESP, 
+		ECMD_REPORT_REQ, 
+		ECMD_QUOTE_RESP, 
+		ECMD_SOCK_OPEN_RESP, 
+		ECMD_SOCK_CLOSE_RESP,
+		ECMD_SOCK_SEND_RESP, 
+		ECMD_SOCK_RECV_RESP, 
+		ECMD_CONS_READ_RESP,
 		/* From enclave to user */
-		ECMD_REPORT_RESP, ECMD_QUOTE_REQ, ECMD_RECV_REQ, 
-		ECMD_SEND_REQ, ECMD_PRINT, ECMD_DONE};
+		ECMD_REPORT_RESP, 
+		ECMD_QUOTE_REQ, 
+		ECMD_SOCK_OPEN_REQ, 
+		ECMD_SOCK_CLOSE_REQ,
+		ECMD_SOCK_SEND_REQ, 
+		ECMD_SOCK_RECV_REQ, 
+		ECMD_CONS_READ_REQ,
+		ECMD_CONS_WRITE, 
+		ECMD_DONE};
 typedef enum echan_type echan_type_t;
 typedef enum ecmd_type ecmd_type_t;
 
 #define ECMD_FIRST_FROM_USER ECMD_REPORT_REQ
-#define ECMD_LAST_FROM_USER EMD_RECV_RESP
+#define ECMD_LAST_FROM_USER EMD_CONS_READ_RESP
 #define ECMD_FIRST_FROM_ENC (ECMD_LAST_FROM_USER + 1)
 #define ECMD_LAST_FROM_ENC ECMD_DONE
 #define ECMD_LAST_SYSTEM ECMD_LAST_FROM_ENC
 
 struct ecmd {
 	ecmd_type_t t;
+	unsigned int val;
 	size_t len; 
 };
 

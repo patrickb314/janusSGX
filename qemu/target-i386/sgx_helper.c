@@ -2909,9 +2909,9 @@ void sgx_ecreate(CPUX86State *env)
     {
         char hash[64+1];
         uint64_t counter = tmp_secs->mrEnclaveUpdateCounter;
-
+	
         fmt_hash(tmp_secs->mrEnclave, hash);
-
+	
         sgx_dbg(info, "measurement: %.20s.., counter: %ld", hash, counter);
     }
 #endif

@@ -1,49 +1,39 @@
-// Simple test case using the enclave gate mechanism
+// Simple test case using the enclave gate mechanism to launch an enclave
+// that actually includes a secret of some sort. It requires an enclave proxy
+// running that handles commands enqueue on the gate, because the enclave doesn't
+// actually return to user space until it's actually all the easy set up.
 
 #include <sgx-lib.h>
 #include <egate.h>
 
-/* This is basically a finite state machine that is in one of 
- * a few startup states, or processing requests. Ideally, this would
- * be running in a separate thread and just exchanging info over the 
- * enclave gate, but we qemu user code doesn't support multi-threading
- * right now, so we just let the main thread keep pinging doing the main
- * loop */
-
-enum bootstrap_state {BS_UNINIT = 0, BS_QUOTING, BS_PROVISIONED, BS_INITED};
-bsst_t state = BSST_UNINIT;
-
+char buffer[4096];
 void enclave_main(egate_t *g)
 {
-	switch (state) {
-	case BS_UNINIT:
-		/* We start by communicating with a remote who will
-		 * give us //sekrits// 
-		 */
-		eg_sendto(DESTINATION, "Enclave starting up.\n");
-		state = BS_STARTUP;
-		break;
-	case BS_STARTUP:
-		/* We get the info we need from the remote, and now
-		 * request a quote using the diffie hellman nonce it 
-		 * provides */
-		eg_recvfrom(DESTINATION, buffer);
-		eg_quote_request(buffer);
-		break;
-	case BS_QUOTING:
-		/* We've requested a quote and we're waiting for 
-	         * a response. Once we get it, send it to our 
-		 * destination, which should actually give us what
-		 * we need to set up a TLS channel */
-		eg_quote_response(quote);
-		eg_sendto(DESTINATION, quote);
+	/* What encryption is needed along hte way in here to:
+	 * 1) Make sure we're talking to the destination we think we are
+	 * 2) Get a diffie hellman key from them for later use?
+	 */
+	eg_printf(g, "Test enclave starting up.\n");
+
+#if 0
+	/* Request the special sekrit, encrypt with destination public key */
+	eg_sendto(g, DESTINATION, 
+		  "Give me secrets, here's a nonce and initial seqn");
+	eg_recvfrom(g, DESTINATION, buffer);
+
+	CHECK_RESPONSE_VALIDITY(buffer, remoteID, seq++);
+
+	if (is_quote_request(buffer)) 
 		
-		break;	
-	case BS_COMMUNICATING:
-		/* We have a communication channel with the remote
-		 * set up, awaiting it to provision secrets to us */
-		eg_recvfrom(DESTINATION, sekrit);
-		break;
-	case BS_INITED:
+		extract_nonse(buffer, nonce);
+		eg_quote_request(g, extracbuffer);
+		eg_quote_recv(g, quote);
+		eg_sendto(g, DESTINATION, quote);
 	}
+
+	eg_recvfrom(g, DESTINATION, sekrit);
+	CHECK_RESPONSE(buffer, remoteID, seq++);
+
+	/* If we get here, we have our secret */
+#endif
 }

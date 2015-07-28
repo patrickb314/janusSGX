@@ -222,9 +222,9 @@ void init_thread_storage(tcs_t *tcs)
 static
 void set_stack_frame(tcs_t *tcs)
 {
-    tcs->nssa = STACK_PAGE_FRAMES_PER_TCS; /* XXX PGB - Divide by secs->ssaframesize once that's bigger than 1 */
-    tcs->cssa = 2; /* XXX PGB - Why was this 2 and not zeroed by EADD? This 
-		   /* breaks proper exception handling! */
+    tcs->nssa = NSSA_PER_TCS; 
+    tcs->cssa = 2; /* XXX PGB - Why was this 2 and not zeroed by EADD? */
+		   /* This breaks proper exception handling! */
 }
 
 // Set tcs oentry.
@@ -290,8 +290,6 @@ void generate_enclavehash(void *hash, void *code, int code_pages,
 
     // Pre-compute ssa frame and enclave size.
     ssa_frame_size = STACK_PAGE_FRAMES_PER_SSA; 
-			/* XXX PGB - should depend on the number of pages for 
-			 * xsave and the enclave stack */
 
     // Set enclave_size
     npages = rop2(npages);

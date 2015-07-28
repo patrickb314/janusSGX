@@ -1,6 +1,13 @@
 #include <sgx.h>
 #include <egate.h>
 
+#include <errno.h>
+#include <netdb.h>
+#include <unistd.h>
+
+#include <sys/types.h>
+#include <sys/socket.h>
+
 static inline int roundup2(int x, int y) {
 	return (x + y - 1) & ~(y-1);
 }
@@ -86,7 +93,9 @@ int egate_user_dequeue(egate_t *g, ecmd_t *r, void *buf, size_t len)
 	 * so get the data as well and then increment start by the full 
 	 * amount */
 	start += sizeof(ecmd_t);
-	ret = echan_copytouser(c, start, buf, r->len);
+	if (r->len) {
+		ret = echan_copytouser(c, start, buf, r->len);
+	}
 	c->start = roundup2(start + r->len, 8) % ECHAN_BUF_SIZE;
 	
 	return ret;
@@ -105,11 +114,13 @@ int egate_user_enqueue(egate_t *g, ecmd_t *r, void *buf, size_t len)
 
         ret = echan_copyfromuser(c, end, r, sizeof(ecmd_t));
         if (ret) return ret;
-        end = (end + sizeof(ecmd_t)) % ECHAN_BUF_SIZE;
+        end = roundup2(end + sizeof(ecmd_t), 8) % ECHAN_BUF_SIZE;
 
-        ret = echan_copyfromuser(c, end, buf, r->len);
-        if (ret) return ret;
-        end = roundup2((end + r->len), 8) % ECHAN_BUF_SIZE;
+	if (r->len) {
+        	ret = echan_copyfromuser(c, end, buf, r->len);
+        	if (ret) return ret;
+        	end = roundup2(end + r->len, 8) % ECHAN_BUF_SIZE;
+	}
 
         /* XXX need a memory barrier here, though since hte copy is in a function
          * call that hopefully isn't optimized away, we could be okay for now. */
@@ -117,12 +128,95 @@ int egate_user_enqueue(egate_t *g, ecmd_t *r, void *buf, size_t len)
         return 0;
 }
 
+int egate_user_sock_open(egate_t *g, ecmd_t *r, void *buf, size_t len)
+{
+	ecmd_t resp;
+	struct addrinfo *ai;
+	struct sockaddr *sa;
+	int fd = -1, err = 0, ret = -1;
+	/* COmmand contains a struct addrinfo and a struct sockaddr_XXX with
+	 * length in the struct addrinfo */
+	if (len < sizeof(struct addrinfo)) {
+		err = EINVAL;
+		goto done;
+	}
+
+	ai = buf;
+	if (len < (sizeof(struct addrinfo) + ai->ai_addrlen)) {
+		err = EINVAL;
+		goto done;
+	}
+
+	sa = (struct sockaddr *)((char *)buf + sizeof(struct addrinfo));
+	fd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+	if (fd < 0) {
+		err = errno;
+		goto done;
+	}
+	
+	ret = connect(fd, sa, ai->ai_addrlen);
+	if (ret) {
+		err = errno;
+	}
+
+done:
+	/* Write the response back to the caller */
+	resp.t = ECMD_SOCK_OPEN_RESP;
+	resp.len = 0;
+	if (!err) {
+		resp.val = fd;
+	} else {
+		resp.val = -err;
+	}
+	egate_user_enqueue(g, &resp, NULL, 0);
+	
+	return 0;
+}
+
+int egate_user_sock_close(egate_t *g, ecmd_t *r, void *buf, size_t len)
+{
+	int ret;
+	ecmd_t resp;
+
+	ret = close(r->val);
+	/* Write the response back to the caller */
+	resp.t = ECMD_SOCK_CLOSE_RESP;;
+	resp.len = 0;
+	if (ret == 0) {
+		resp.val = 0;
+	} else {
+		resp.val = -errno;
+	}
+	egate_user_enqueue(g, &resp, NULL, 0);
+	
+	return 0;
+}
+
+int egate_user_sock_send(egate_t *g, ecmd_t *r, void *buf, size_t len)
+{
+	return 0;
+}
+
+int egate_user_sock_recv(egate_t *g, ecmd_t *r, void *buf, size_t len)
+{
+	return 0;
+}
+
 int egate_user_cmd(egate_t *g, ecmd_t *r, void *buf, size_t len, int *done)
 {
 	switch(r->t) {
-		case ECMD_PRINT:
-			printf("%s", buf);
+		case ECMD_CONS_WRITE:
+			/* This should have some more sanity checking added to it. */
+			printf("%s", (char *)buf);
 			return 0;
+		case ECMD_SOCK_OPEN_REQ:
+			return egate_user_sock_open(g, r, buf, len);
+		case ECMD_SOCK_CLOSE_REQ:
+			return egate_user_sock_close(g, r, buf, len);
+		case ECMD_SOCK_SEND_REQ:
+			return egate_user_sock_send(g, r, buf, len);
+		case ECMD_SOCK_RECV_REQ:
+			return egate_user_sock_recv(g, r, buf, len);
 		case ECMD_DONE:
 			*done = 1;
 			return 0;
