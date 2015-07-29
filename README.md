@@ -63,6 +63,7 @@ want to load symbols for the (runtime-loaded) enclave code. Below is a simple ex
         (gdb) c
 
 3. Because the enclave code is loaded separately, you must explicitly tell GDB about symbols in it for it to be able to backtrace and debug enclave code. Note that the sgx-test program is configured to print out the gdb command that you need to run to do this.
+
         (gdb) add-symbol-file test/simple-arg.sgx 0x5000010c
         (gdb) c
 
