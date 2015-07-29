@@ -43,7 +43,7 @@ int main(int argc, char **argv)
     	if(!sgx_init())
         	err(1, "failed to init sgx");
 
-	pages = load_elf_enclave(enclave, &npages, &entry);
+	pages = load_elf_enclave(enclave, &npages, &entry, 1);
 	if (!pages) {
 		usage(argv[0]);
 		exit(-1);

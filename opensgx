@@ -4,6 +4,7 @@ SGXTOOL=$ROOT/user/sgx-tool
 SGX=$ROOT/sgx
 DEVICEKEY=$ROOT/user/conf/device.key
 INTELKEY=$ROOT/user/conf/intel.key
+GDBPORT=-1
 
 key_gen() {
   FILENAME=sign.key
@@ -21,12 +22,11 @@ compile_code() {
 }
 
 run_program() {
-  BASEDIR=$(dirname $1)
-  BASENAME=$(basename $1)
-  NAME="${BASENAME%.*}"
-  EXE=$BASEDIR/$NAME.sgx
-
   $SGX $@
+}
+
+debug_program() {
+  $SGX -g $GDBPORT $@
 }
 
 measure() {
@@ -90,6 +90,11 @@ case "$1" in
     sign-intel $2
     ;;
   esac
+  ;;
+  -d|--debug)
+  GDBPORT=$2
+  shift; shift
+  debug_program $@
   ;;
   *)
   run_program $@

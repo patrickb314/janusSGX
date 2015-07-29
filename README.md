@@ -1,7 +1,10 @@
 JanusSGX: A modification of OpenSGX for developing new enclave
-APIs. THe old OpenSGX runtime, which relies on non-standard hardware
-behavior is stripped away and things are closer to what real hardware
-will need. Simple test cases:
+APIs. Most of the original old OpenSGX runtime, which relies on 
+non-standard hardware behavior, has been stripped away and things
+are closer to what real hardware will need.
+
+Quickstart Build Instructions
+=============================
 
 1. Build qemu: 
 
@@ -41,7 +44,31 @@ will need. Simple test cases:
         ../opensgx launch-test bootstrap/launch-enclave.sgx bootstrap/launch-enclave.conf conf/intel.key test/simple-arg.conf
         # Generated einittoken MAC should match what the GT user tools generated with the launch key they'd extracted/generated using by knowing the "hardware fuses".
 
-***
+Debugging JanusSGX Programs
+===========================
+
+To debug enclave code in JanusSGX, you can use the qemu linux-user GDB stub and GDB
+remote debugging support. In addition to normal remote GDB commands, you will also
+want to load symbols for the (runtime-loaded) enclave code. Below is a simple example:
+
+1. Run the test program with remote GDB support in the background:
+
+	../opensgx -d 1234 sgx-test test/simple-arg.sgx test/simple-arg.conf &
+
+2. Run, attach GDB to the emulator, and set a breakpoint immediately prior to 
+   launching the enclave
+
+	gdb sgx-test
+	(gdb) target remote localhost:1234
+	(gdb) break create_enclave_conf
+	(gdb) c
+
+3. Because the enclave code is loaded separately, you must explicitly tell GDB about symbols in it for it to be able to backtrace and debug enclave code. Note that the sgx-test program is configured to print out the gdb command that you need to run to do this.
+	(gdb) add-symbol-file test/simple-arg.sgx 0x5000010c
+	(gdb) c
+
+At this point, any errors in the program can be backtraced, and enclave state 
+debugged. Breakpoints in enclave code are not necessarily fully functional, however.
 
 OpenSGX: An open platform for Intel SGX
 =======================================

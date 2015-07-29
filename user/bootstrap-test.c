@@ -20,7 +20,7 @@ tcs_t *create_elf_enclave(char *enc, sigstruct_t *ss, einittoken_t *ei)
 {
 	size_t npages;
 	void *entry;
-	void* pages = load_elf_enclave(enc, &npages, &entry);
+	void* pages = load_elf_enclave(enc, &npages, &entry, 0);
 	int keid;
 	keid_t stat;
 

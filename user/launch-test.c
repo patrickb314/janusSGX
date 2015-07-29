@@ -19,7 +19,7 @@ tcs_t *create_launch_enclave(char *enc, char *conf)
 {
 	size_t npages;
 	void *entry;
-	void* pages = load_elf_enclave(enc, &npages, &entry);
+	void* pages = load_elf_enclave(enc, &npages, &entry, 0);
 	int keid;
 	keid_t stat;
 

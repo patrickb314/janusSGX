@@ -24,7 +24,39 @@ int elf_to_mmap_flags(int eflags)
 	return r;
 }
 
-void *load_elf_enclave(char *filename, size_t *npages, void **entry)
+void print_gdb_debug_info(char *filename, void *addr, Elf *e)
+{
+	Elf_Scn *scn;
+	GElf_Shdr shdr;
+	int textoff = -1;
+	size_t shstrndx;
+
+	if (elf_getshdrstrndx(e, &shstrndx) != 0){
+		fprintf(stderr, "getshdrstrndx() failed: %s.\n", elf_errmsg(-1));
+		return NULL;
+	}
+
+	scn = NULL;
+	while ((scn = elf_nextscn(e, scn)) != NULL) {
+		if (gelf_getshdr(scn, &shdr) != &shdr) {
+			fprintf(stderr, "getshdr() failed: %s.\n", elf_errmsg(-1));
+			return NULL;
+		}
+		if (strcmp(".text", elf_strptr(e, shstrndx, shdr.sh_name)) == 0) {
+			textoff = shdr.sh_offset;
+			break;
+		}
+	}
+		
+	if (textoff > 0) {
+		fprintf(stderr, 
+			"Add GDB symbols for %s using: add-symbol-file %s %p\n",
+			filename, filename, (char *)addr + textoff);
+		fflush(stderr);
+	}
+}
+
+void *load_elf_enclave(char *filename, size_t *npages, void **entry, int debug)
 {
 	int fd;
 	Elf *e;
@@ -124,6 +156,11 @@ void *load_elf_enclave(char *filename, size_t *npages, void **entry)
 			*npages += (mend-start)/PAGE_SIZE;
 		}
 	}
+#if 1
+	if (debug) {
+		print_gdb_debug_info(filename, addr, e);
+	}
+#endif
 	if (addr != (void *)-1UL) {
 		return addr;
 	} else  {

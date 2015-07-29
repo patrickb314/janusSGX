@@ -15,7 +15,7 @@
 #define SGXLIB_MAX_ARG  512
 
 extern int sgx_init(void);
-void *load_elf_enclave(char *filename, size_t *npages, void **entry);
+void *load_elf_enclave(char *filename, size_t *npages, void **entry, int debug);
 
 /* Macros to define user-side enclave calls with different argument
  * numbers */

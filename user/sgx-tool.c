@@ -67,7 +67,7 @@ void cmd_measure(char *binary)
     	unsigned char hash[32];
     	int i;
 
-	code = load_elf_enclave(binary, &n_of_pages, (void **)&entry);
+	code = load_elf_enclave(binary, &n_of_pages, (void **)&entry, 0);
 
 	if (!code) {
 		fprintf(stderr, "measure failed to load enclave binary.\n");
