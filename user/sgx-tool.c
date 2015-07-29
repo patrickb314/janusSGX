@@ -487,37 +487,6 @@ int encrypt_quoting_key(unsigned char *in, const unsigned char *key,
 	return 0;
 }
 
-void cmd_quotekey(char *devkey, char *intelkey)
-{
-	unsigned char device_pubkey[DEVICE_KEY_LENGTH],
-		      device_seckey[DEVICE_KEY_LENGTH],
-		      launch_key[DEVICE_KEY_LENGTH],
-	              intel_keyinfo[5*KEY_LENGTH],
-		      encrypted_keyinfo[KEY_LENGTH];
-	int i;
-	rsa_context *ctx;
-    	load_rsa_keys(devkey, device_pubkey, device_seckey, 
-		      DEVICE_KEY_LENGTH_BITS);
-    	ctx = load_rsa_keys(intelkey, intel_keyinfo, intel_keyinfo+KEY_LENGTH, 
-		            KEY_LENGTH_BITS);
-	mpi_write_binary(&ctx->P, intel_keyinfo + 2*KEY_LENGTH, KEY_LENGTH);
-	mpi_write_binary(&ctx->Q, intel_keyinfo + 3*KEY_LENGTH, KEY_LENGTH);
-	mpi_write_binary(&ctx->E, intel_keyinfo + 4*KEY_LENGTH, KEY_LENGTH);
-
-    	generate_launch_key(device_seckey, launch_key);
-
-	/* Now encrypt the intel secret key with the launch key */
-	encrypt_quoting_key(intel_keyinfo, launch_key, encrypted_keyinfo);
-
-	/* And print the resulting encrypted data */
-	fprintf(stdout, "#define ENCRYPTED_QUOTING_KEY {");
-	for (i = 0; i < 5*KEY_LENGTH; i++) {
-		fprintf(stdout, "0x%02x, ", encrypted_keyinfo[i]);
-	}
-	fprintf(stdout, "}\n");
-	return;
-}
-
 void cmd_help()
 {
     printf("[usage] sgx-tool {opts}\n");
@@ -532,7 +501,6 @@ void cmd_help()
     printf("                      (-M EINITTOKEN --key=KEYFILE)\n");
     printf("  -S|--sigstructgen : generate a sigstruct format\n");
     printf("  -E|--einittokengen: generate a einittoken format\n");	
-    printf("  -Q|--quotekey     : generate data for a launch-key encrypted quote key\n");
     printf(" 			  (-Q intelkey --key=devicekey\n");
     exit(0);
 }
@@ -558,7 +526,6 @@ int main(int argc, char *argv[])
         {"einittokengen", required_argument, 0, 'E'},
         {"sigstruct"    , required_argument, 0, 'g'},
         {"einittoken"   , required_argument, 0, 't'},
-	{"quotekey"	, required_argument, 0, 'Q'},
 	{"intel"	, no_argument, 0, 'I'},
         {0, 0, 0, 0}
     };
@@ -610,14 +577,6 @@ int main(int argc, char *argv[])
         case 'E':
             cmd_gen_einittoken(optarg);
             break;
-        case 'Q': {
-            char *intelkeyfile = optarg;
-            char *devicekeyfile;
-            c = getopt_long(argc, argv, "K:", options, &optind);
-            devicekeyfile = optarg;
-            cmd_quotekey(devicekeyfile, intelkeyfile);
-            break;
-        }
         }
     }
 

@@ -1578,12 +1578,6 @@ void sgx_eenter(CPUX86State *env)
 //    uint64_t funcPtr = (uint64_t)func;
 #endif
 
-    int i;
-    for (i = 0; i < 20; i ++) {
-        fprintf(stderr, "%02X ", cpu_ldub_data(env, env->eip + i));
-    }
-    fprintf(stderr, "\n");
-
     // save the outside RSP and RBP so they can be restored on interrupt or EEXIT
     env->cregs.CR_GPR_PA.ursp = env->regs[R_ESP];
     env->cregs.CR_GPR_PA.urbp = env->regs[R_EBP];
@@ -2090,15 +2084,6 @@ void sgx_egetkey(CPUX86State *env)
     sgx_derivekey(&keydep, tmp_key);
     memcpy((uint8_t *)outputdata, tmp_key, 16);
 
-    {
-	int l;
-        sgx_msg(info, "Get key:");
-		for (l = 0; l < 16; l++)
-            fprintf(stderr, "%02X", tmp_key[l]);
-            //fprintf(stderr, "%02X", (unsigned char *)outputdata[l]);
-        fprintf(stderr, "\n");
-    }
-
     env->regs[R_EAX] = 0;
     env->eflags &= ~CC_Z;
 _EXIT:
@@ -2185,14 +2170,6 @@ void sgx_ereport(CPUX86State *env)
     /* Calculate Derived Key */
     sgx_derivekey(&tmp_keydependencies, (unsigned char *)tmp_reportkey);
 
-    {
-        sgx_msg(info, "Expected report key:");
-        int l;
-		for (l = 0; l < 16; l++)
-            fprintf(stderr, "%02X", tmp_reportkey[l]);
-        fprintf(stderr, "\n");
-    }
-
     aes_cmac128_context ctx;
 
     aes_cmac128_starts(&ctx, tmp_reportkey);
@@ -2205,13 +2182,6 @@ void sgx_ereport(CPUX86State *env)
     memcpy(report, (uint8_t *)&tmp_report, 432);
 
     memcpy((uint8_t *)outputdata, report, 512);
-
-    {
-        sgx_msg(info, "Generated report:");
-        int k;
-        for (k = 0; k < 432; k++)
-            fprintf(stderr, "%02X", report[k]);
-    }
 
     env->cregs.CR_CURR_EIP = env->cregs.CR_NEXT_EIP;
     env->cregs.CR_ENC_INSN_RET = true;
@@ -3346,17 +3316,6 @@ void sgx_einit(CPUX86State *env)
     epcm_page_type_check(&epcm[index_secs], PT_SECS, env);
 
     // TODO : Make sure no other instruction is accessing MRENCLAVE or ATTRIBUTES.INIT
-
-    // Verify MRENCLAVE from SIGSTRUCT
-    {
-        unsigned char hash_measured[32];
-        memcpy(hash_measured, tmp_mrEnclave, 32);
-        sgx_msg(info, "Expected enclave measurement:");
-        int k;
-		for (k = 0; k < 32; k++)
-            fprintf(stderr, "%02X", (uint8_t)hash_measured[k]);
-        fprintf(stderr, "\n");
-    }
 
     bool is_debugging = is_debuggable_enclave_hash(tmp_sig.enclaveHash);
 

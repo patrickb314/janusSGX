@@ -9,12 +9,7 @@
 
 /* Current hacks:
  * - The private key we use for quoting is hard-coded here, so not actually
- * secure (since the untrusted host can see in here). To give some mediocum of
- * security, what's actually hardcoded here is the "Intel" private key
- * encrypted with the platform launch key; only Intel-signed enclaves
- * running sealed up get access to that key. In that way, the host code
- * (which doesn't in theory have access to the launch key) can't simply 
- * extract the private key and go to town.
+ * secure (since the untrusted host can see in here). 
  */
 
 #include <sgx-lib.h>
@@ -65,8 +60,10 @@ char *quoting_key = "-----BEGIN PRIVATE KEY-----\n"
 void sign_quote(quote_t *q)
 {
 	pk_context ctx;
+	pk_init(&ctx);
 	pk_parse_key(&ctx, (unsigned char *)quoting_key, 
 		     strlen(quoting_key), NULL, 0);
+	*(int *)2 = 0;
 	rsa_sign(pk_rsa(ctx), (unsigned char *)&q->report, 384,
                  (unsigned char *)q->sig);
 	pk_free(&ctx);
