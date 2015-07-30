@@ -57,10 +57,43 @@ want to load symbols for the (runtime-loaded) enclave code. Below is a simple ex
 
 2. Run, attach GDB to the emulator, and set a breakpoint immediately prior to running in the enclave
 
+
+Missing separate debuginfos, use: debuginfo-install elfutils-libelf-0.161-6.fc21.x86_64
+(gdb) add-symbol-file test/simple-arg.sgx 0x4000c10c
+add symbol table from file "test/simple-arg.sgx" at
+	.text_addr = 0x4000c10c
+(y or n) y
+Reading symbols from test/simple-arg.sgx...done.
+(gdb) break enclave-m
+Display all 264 possibilities? (y or n)
+(gdb) break enclave-main
+Function "enclave-main" not defined.
+Make breakpoint pending on future shared library load? (y or [n]) n
+(gdb) break enclave_main
+Breakpoint 2 at 0x4000c114: file test/simple-arg.c, line 7.
+(gdb) c
+Continuing.
+
+Breakpoint 2, enclave_main (arg=0x63692c <a_val>) at test/simple-arg.c:7
+7	    *arg += 1;
+(gdb) q
+A debugging session is active.
+
+
         gdb sgx-test
         (gdb) target remote localhost:1234
+        Remote debugging using localhost:1234
+        Reading symbols from /lib64/ld-linux-x86-64.so.2...(no debugging symbols found)...done.
+        Loaded symbols for /lib64/ld-linux-x86-64.so.2
+        0x0000004000801cf0 in _start () from /lib64/ld-linux-x86-64.so.2
+        Missing separate debuginfos, use: debuginfo-install glibc-2.20-8.fc21.x86_64
         (gdb) break sgx-test.c:62
+        Breakpoint 1 at 0x401b08: file sgx-test.c, line 62.
         (gdb) c
+        Continuing.
+
+        Breakpoint 1, main (argc=2, argv=0x4000800028) at sgx-test.c:62
+        62	    	enclave1_call(stat.tcs, exception_handler, &a_val);
 
 3. Because the enclave code is loaded separately, you must explicitly tell GDB about symbols in it for it to be able to backtrace and debug enclave code. Note that the sgx-test program is configured to compute and print out the gdb command that you need to run to do this.
 
@@ -70,7 +103,12 @@ want to load symbols for the (runtime-loaded) enclave code. Below is a simple ex
         (y or n) y
         Reading symbols from test/simple-arg.sgx...done.
         (gdb) break enclave_main
+        Breakpoint 2 at 0x4000c114: file test/simple-arg.c, line 7.
         (gdb) c
+        Continuing.
+
+        Breakpoint 2, enclave_main (arg=0x63692c <a_val>) at test/simple-arg.c:7
+        7	    *arg += 1;
 
 At this point, any errors in the program can be backtraced, enclave state debugged, and breakpoints set in the enclave.
 
