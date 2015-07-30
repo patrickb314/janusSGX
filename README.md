@@ -55,20 +55,24 @@ want to load symbols for the (runtime-loaded) enclave code. Below is a simple ex
 
         ../opensgx -d 1234 sgx-test test/simple-arg.sgx test/simple-arg.conf &
 
-2. Run, attach GDB to the emulator, and set a breakpoint immediately prior to launching the enclave
+2. Run, attach GDB to the emulator, and set a breakpoint immediately prior to running in the enclave
 
         gdb sgx-test
         (gdb) target remote localhost:1234
-        (gdb) break create_enclave_conf
+        (gdb) break sgx-test.c:62
         (gdb) c
 
-3. Because the enclave code is loaded separately, you must explicitly tell GDB about symbols in it for it to be able to backtrace and debug enclave code. Note that the sgx-test program is configured to print out the gdb command that you need to run to do this.
+3. Because the enclave code is loaded separately, you must explicitly tell GDB about symbols in it for it to be able to backtrace and debug enclave code. Note that the sgx-test program is configured to compute and print out the gdb command that you need to run to do this.
 
         (gdb) add-symbol-file test/simple-arg.sgx 0x5000010c
+        add symbol table from file "test/simple-arg.sgx" at
+        	.text_addr = 0x4000c10c
+        (y or n) y
+        Reading symbols from test/simple-arg.sgx...done.
+        (gdb) break enclave_main
         (gdb) c
 
-At this point, any errors in the program can be backtraced, and enclave state 
-debugged. Breakpoints in enclave code are not necessarily fully functional, however.
+At this point, any errors in the program can be backtraced, enclave state debugged, and breakpoints set in the enclave.
 
 OpenSGX: An open platform for Intel SGX
 =======================================
