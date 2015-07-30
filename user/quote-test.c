@@ -19,15 +19,17 @@ tcs_t *create_elf_enclave(char *enc, char *conf)
 {
 	size_t npages;
 	void *entry;
-	void* pages = load_elf_enclave(enc, &npages, &entry, 1);
-	int keid;
+	int keid, toff;
+	void* pages = load_elf_enclave(enc, &npages, &entry, &toff);
 	keid_t stat;
 
         keid = create_enclave_conf(entry, pages, npages, conf);
 
         if (syscall_stat_enclave(keid, &stat) < 0)
                 err(1, "failed to stat enclave");
-
+        fprintf(stdout,
+                "Add enclave symbols to GDB using \"add-symbol-file %s %lx\"\n",
+                enc, stat.enclave + stat.tcs->oentry - toff);
     	return stat.tcs;
 }
 

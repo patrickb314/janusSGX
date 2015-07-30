@@ -24,23 +24,23 @@ int elf_to_mmap_flags(int eflags)
 	return r;
 }
 
-void print_gdb_debug_info(char *filename, void *addr, Elf *e)
+int text_section_offset(char *filename, void *addr, Elf *e)
 {
 	Elf_Scn *scn;
 	GElf_Shdr shdr;
-	int textoff = -1;
+	int textoff = 0;
 	size_t shstrndx;
 
 	if (elf_getshdrstrndx(e, &shstrndx) != 0){
 		fprintf(stderr, "getshdrstrndx() failed: %s.\n", elf_errmsg(-1));
-		return NULL;
+		return 0;
 	}
 
 	scn = NULL;
 	while ((scn = elf_nextscn(e, scn)) != NULL) {
 		if (gelf_getshdr(scn, &shdr) != &shdr) {
 			fprintf(stderr, "getshdr() failed: %s.\n", elf_errmsg(-1));
-			return NULL;
+			return 0;
 		}
 		if (strcmp(".text", elf_strptr(e, shstrndx, shdr.sh_name)) == 0) {
 			textoff = shdr.sh_offset;
@@ -48,15 +48,10 @@ void print_gdb_debug_info(char *filename, void *addr, Elf *e)
 		}
 	}
 		
-	if (textoff > 0) {
-		fprintf(stderr, 
-			"Add GDB symbols for %s using: add-symbol-file %s %p\n",
-			filename, filename, (char *)addr + textoff);
-		fflush(stderr);
-	}
+	return textoff;
 }
 
-void *load_elf_enclave(char *filename, size_t *npages, void **entry, int debug)
+void *load_elf_enclave(char *filename, size_t *npages, void **entry, int *offset)
 {
 	int fd;
 	Elf *e;
@@ -156,11 +151,11 @@ void *load_elf_enclave(char *filename, size_t *npages, void **entry, int debug)
 			*npages += (mend-start)/PAGE_SIZE;
 		}
 	}
-#if 1
-	if (debug) {
-		print_gdb_debug_info(filename, addr, e);
+	if (offset) {
+		int toff = text_section_offset(filename, addr, e);
+		*offset = (unsigned long )*entry - (unsigned long)addr - toff;
+		fprintf(stderr, "Entry is %x bytes into text section.\n", *offset);
 	}
-#endif
 	if (addr != (void *)-1UL) {
 		return addr;
 	} else  {

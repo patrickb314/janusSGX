@@ -22,9 +22,10 @@ void usage(char *progname)
 
 int main(int argc, char **argv)
 {
-	void *conf, *enclave;
+	char *conf, *enclave;
 	void *pages, *entry;
 	size_t npages;
+	int toff;
 	int keid;
 	keid_t stat;
 
@@ -43,7 +44,7 @@ int main(int argc, char **argv)
     	if(!sgx_init())
         	err(1, "failed to init sgx");
 
-	pages = load_elf_enclave(enclave, &npages, &entry, 1);
+	pages = load_elf_enclave(enclave, &npages, &entry, &toff);
 	if (!pages) {
 		usage(argv[0]);
 		exit(-1);
@@ -51,10 +52,13 @@ int main(int argc, char **argv)
 
 	fprintf(stdout, "Creating enclave of %lu pages at address %p.\n", npages, pages);
     	keid = create_enclave_conf(entry, pages, npages, conf);
-
+	
     	if (syscall_stat_enclave(keid, &stat) < 0)
         	err(1, "failed to stat enclave");
 	
+	fprintf(stdout, 
+		"Add enclave symbols to GDB using \"add-symbol-file %s %lx\"\n",
+		enclave, stat.enclave + stat.tcs->oentry - toff);
     	enclave1_call(stat.tcs, exception_handler, &a_val);
 	fprintf(stdout, "a_val = %d.\n", a_val);
 
