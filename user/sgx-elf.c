@@ -154,7 +154,6 @@ void *load_elf_enclave(char *filename, size_t *npages, void **entry, int *offset
 	if (offset) {
 		int toff = text_section_offset(filename, addr, e);
 		*offset = (unsigned long )*entry - (unsigned long)addr - toff;
-		fprintf(stderr, "Entry is %x bytes into text section.\n", *offset);
 	}
 	if (addr != (void *)-1UL) {
 		return addr;

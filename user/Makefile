@@ -16,7 +16,7 @@ SGX_LIBS=$(LIBSGXDIR)/libpolarssl.a $(LIBSGXDIR)/libsgx.a $(LIBSGXDIR)/sgx-entry
 BASE_CFLAGS := -g -Iinclude -Wall -pedantic -Wno-unused-function -std=gnu11 
 CFLAGS := $(BASE_CFLAGS)
 ENC_CFLAGS := $(BASE_CFLAGS) -I$(LIBSGXDIR)/include -fno-stack-protector -static -fPIC -fvisibility=hidden
-ENC_ASFLAGS := -D__ASSEMBLY__ -Iinclude -Wall -fno-stack-protector -static -fPIC
+ENC_ASFLAGS := -D__ASSEMBLY__ -Iinclude -Wall -fno-stack-protector -static -fPIC -g
 
 BOOTSTRAP_ENCS = bootstrap/launch-enclave.sgx bootstrap/launch-enclave.conf \
 		 bootstrap/quoting-enclave.sgx bootstrap/quoting-enclave.conf \

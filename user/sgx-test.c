@@ -57,8 +57,8 @@ int main(int argc, char **argv)
         	err(1, "failed to stat enclave");
 	
 	fprintf(stdout, 
-		"Add enclave symbols to GDB using \"add-symbol-file %s %lx\"\n",
-		enclave, stat.enclave + stat.tcs->oentry - toff);
+		"Add enclave symbols to GDB using \"add-symbol-file %s %p\"\n",
+		enclave, (void *)(stat.enclave + stat.tcs->oentry - toff));
     	enclave1_call(stat.tcs, exception_handler, &a_val);
 	fprintf(stdout, "a_val = %d.\n", a_val);
 

@@ -28,8 +28,8 @@ tcs_t *create_elf_enclave(char *enc, char *conf)
         if (syscall_stat_enclave(keid, &stat) < 0)
                 err(1, "failed to stat enclave");
         fprintf(stdout,
-                "Add enclave symbols to GDB using \"add-symbol-file %s %lx\"\n",
-                enc, stat.enclave + stat.tcs->oentry - toff);
+                "Add enclave symbols to GDB using \"add-symbol-file %s %p\"\n",
+                enc, (void  *)(stat.enclave + stat.tcs->oentry - toff));
     	return stat.tcs;
 }
 
