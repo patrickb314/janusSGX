@@ -78,6 +78,7 @@ int egate_proxy_init(egate_t *, tcs_t *, sigstruct_t *, echan_t *channels[2]);
 
 int egate_user_peek(egate_t *, ecmd_t *);
 int egate_user_dequeue(egate_t *, ecmd_t *, void *buf, size_t len);
+int egate_user_poll(egate_t *g, ecmd_t *r, void *buf, size_t len);
 int egate_user_enqueue(egate_t *, ecmd_t *, void *buf, size_t len);
 
 int egate_user_cmd(egate_t *, ecmd_t *, void *buf, size_t len, int *done);
@@ -91,5 +92,8 @@ int egate_enclave_cmd(egate_t *, ecmd_t *, void *buf, size_t len, int *done);
 
 int eg_printf(egate_t *, char *, ...);
 int eg_exit(egate_t *, int);
+
+int eg_request_quote(egate_t *, char nonce[64], quote_t *);
+int eg_set_default_gate(egate_t *g);
 
 #endif /* _EGATE_H_ */

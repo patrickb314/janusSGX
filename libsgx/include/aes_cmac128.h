@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include "polarssl/aes.h"
 
 typedef struct aes_cmac_128_context {

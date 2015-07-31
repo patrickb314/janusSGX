@@ -136,8 +136,8 @@ int eg_console_write(egate_t *g, char *buf, int len)
 	int ret;
 
 	c.t = ECMD_CONS_WRITE;
-	c.len = len; // +1 for trailing null
-	ret = egate_enclave_enqueue(g, &c, buf, 512);
+	c.len = len;
+	ret = egate_enclave_enqueue(g, &c, buf, len);
 	if (ret) return -1;
 	
 	return len;

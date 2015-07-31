@@ -3,7 +3,9 @@
 extern void *_end;
 char *heap_base = 0;
 char *heap_top = 0;
-char *heap_limit = &_end;
+char *heap_limit = &_end + PAGE_SIZE*STACK_PAGE_FRAMES_PER_TCS;
+/* This makes assmptions on how our memory is set up when the enclave is 
+ * created; we should probably verify the toolchain does this. */ 
 
 static int _malloc_init(void *start, size_t len)
 {

@@ -112,11 +112,12 @@ int main(int argc, char **argv)
 
 	egate_proxy_init(&e, quotetcs, quotess, pchan);
 	
+	fprintf(stdout, "Proxy reading commands.\n");
 	/* Now do the while loop that serves the buffer. */
 	while (!done) {
 		ecmd_t c;
 		char buffer[2048];
-                ret = egate_user_dequeue(&e, &c, buffer, 2048);
+                ret = egate_user_poll(&e, &c, buffer, 2048);
                 if (ret) break;
                 if (c.t <= ECMD_LAST_SYSTEM) {
                         // Handle predefined cmd
@@ -126,4 +127,5 @@ int main(int argc, char **argv)
 			       " LEN %lu.\n", c.t, c.len);
                 }
 	}
+	fprintf(stdout, "Proxy shutting down.\n");
 }

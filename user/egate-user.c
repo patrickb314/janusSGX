@@ -328,9 +328,9 @@ int egate_proxy_init(egate_t *g, tcs_t *qtcs, sigstruct_t *qss,
 
 /* This is called in the program that sets up the egate and launches the
  * enclave */
-int egate_user_init(egate_t *g, tcs_t *tcs, echan_t *channels[2])
+int egate_user_init(egate_t *g, tcs_t *utcs, echan_t *channels[2])
 {
-	g->tcs = tcs;
+	g->tcs = utcs;
 	g->quotetcs = NULL;
 	g->quotesig = NULL;
 	g->channels[0] = channels[0];

@@ -79,19 +79,19 @@ bootstrap/quoting-enclave.conf: bootstrap/quoting-enclave.sgx sgx-tool
 	$(OPENSGX) -s $< -I
 
 bootstrap/%.conf: bootstrap/%.sgx $(SGXTOOL)
-	$(OPENSGX) -s $^ --key ../sign.key
+	$(OPENSGX) -s $^ --key conf/test.key
 
 launch-test: launch-test.o $(SGX_OBJS) $(SSL_OBJS)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS) -lelf
+	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
 
 quote-test: quote-test.o $(SGX_OBJS) $(SSL_OBJS)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS) -lelf
+	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
 
 generate-launch: generate-launch.o $(SGX_OBJS) $(SSL_OBJS)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS) -lelf
+	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
 
 bootstrap-test: bootstrap-test.o $(SGX_OBJS) $(SSL_OBJS)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS) -lelf
+	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
 
 clean: 
 	rm -f polarssl/*.o *.o $(ALL)

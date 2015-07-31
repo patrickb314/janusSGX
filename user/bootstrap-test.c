@@ -25,34 +25,31 @@ void usage(char *progname)
 int main(int argc, char **argv)
 {
 	char *testenc, *testconf, tmpname[64];
-	sigstruct_t testss __attribute__((aligned(PAGE_SIZE))), *tmpss;
-	einittoken_t testeit __attribute__((aligned(EINITTOKEN_ALIGN_SIZE))), *tmpeit;
 	tcs_t *testtcs;
 	egate_t e;
 	echan_t *pchan[2];
 	int fd;
 	echan_t *channels;
 	int zero;
-	int optend, ret;
 
 	/* Parse options */ 
 	if (argc != 3) {
 		usage(argv[0]);
 		exit(-1);
 	}
-	/* After options are done, get teh test enclave and configuration file */
+	/* After options are done, get the test enclave and configuration file */
 	testenc = argv[1];
 	testconf = argv[2];
 
     	sys_sgx_init(NULL);
 
 	/* Now load and create the enclave question */
-	testtcs = create_elf_enclave_conf(testenc, testconf, NULL, 0);
+	testtcs = create_elf_enclave_conf(testenc, testconf, NULL, 1);
 
 	/* Create a gate to run and communicate with the test enclave */
 	strcpy(tmpname, "/tmp/echan.XXXXXX");
 	fd = mkstemp(tmpname);
-	lseek(fd, 2*sizeof(echan_t), SEEK_SET);
+	lseek(fd, 2*sizeof(echan_t) - sizeof(zero), SEEK_SET);
 	write(fd, &zero, sizeof(zero));
 	if (fd < 0) {
 		perror("mkstemp");
@@ -74,7 +71,8 @@ int main(int argc, char **argv)
 	egate_user_init(&e, testtcs, pchan);
 	fprintf(stdout, "Start egate-proxy for file %s \n", tmpname);
 	fflush(stdout);
+
 	enclave_main(e.tcs, exception_handler, &e);
-	
+	msync(channels, 2*sizeof(echan_t), MS_SYNC);
 	return 0;
 }
