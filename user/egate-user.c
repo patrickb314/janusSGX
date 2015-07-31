@@ -114,7 +114,7 @@ int egate_user_dequeue(egate_t *g, ecmd_t *r, void *buf, size_t len)
 
 int egate_user_enqueue(egate_t *g, ecmd_t *r, void *buf, size_t len)
 {
-        echan_t *c = g->channels[ECHAN_TO_USER];
+        echan_t *c = g->channels[ECHAN_TO_ENCLAVE];
         int start = c->start, end = c->end;
         int ret;
 
@@ -268,6 +268,7 @@ int egate_user_quote(egate_t *g, ecmd_t *r, void *buf, size_t len)
 	if (r->len != 64) return -1;
 
 	/* The user has requested a quote. The nonce is provided. */
+	fprintf(stdout, "Quote requested, asking for report.\n");
 	memset(&t, 0, sizeof(targetinfo_t));
         memcpy(&t.measurement, &g->quotesig->enclaveHash, 32);
         t.attributes = g->quotesig->attributes;
@@ -275,9 +276,12 @@ int egate_user_quote(egate_t *g, ecmd_t *r, void *buf, size_t len)
 	ret = egate_user_request_report(g, &t, buf, &rpt);
 	if (ret) return ret;
 
+	fprintf(stdout, "Received quote, generating quote.\n");
 	/* So we have a report. Get it signed. */
 	request_quote(g->quotetcs, exception_handler, &rpt, &qt);
 
+	hexdump(stdout, &qt, sizeof(quote_t));
+	fprintf(stdout, "Sending back generated quote.\n");
 	/* Now send the resulting request back */
 	c.t = ECMD_QUOTE_RESP;
 	c.len = sizeof(quote_t);

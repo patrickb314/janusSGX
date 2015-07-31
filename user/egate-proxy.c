@@ -121,6 +121,8 @@ int main(int argc, char **argv)
                 if (ret) break;
                 if (c.t <= ECMD_LAST_SYSTEM) {
                         // Handle predefined cmd
+                        printf("Handling communication from enclave: CMD %d"
+			       " LEN %lu.\n", c.t, c.len);
                         egate_user_cmd(&e, &c, buffer, 2048, &done);
                 } else {
                         printf("User-specific communication from enclave: CMD %d"

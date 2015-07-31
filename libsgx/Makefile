@@ -8,6 +8,9 @@ TOP=$(PWD)
 libsgx.a: $(LIBSGX_OBJS)
 	$(AR) rs $@ $^
 
+clean: 
+	rm -f libpolarssl.a $(LIBSGX_OBJS)
+
 libpolarssl.a: mbedtls-config-libsgx.h
 	CFLAGS="-g $(ENC_CFLAGS) -I$(TOP) -DPOLARSSL_CONFIG_FILE='<mbedtls-config-libsgx.h>'" make -C mbedtls-1.3.11 SHARED=1 lib
 	cp mbedtls-1.3.11/library/libpolarssl.a .

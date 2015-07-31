@@ -73,6 +73,6 @@ int main(int argc, char **argv)
 	fflush(stdout);
 
 	enclave_main(e.tcs, exception_handler, &e);
-	msync(channels, 2*sizeof(echan_t), MS_SYNC);
+
 	return 0;
 }

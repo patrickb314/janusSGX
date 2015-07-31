@@ -33,10 +33,11 @@ void enclave_main(egate_t *g)
 #endif
 	memset(nonce, 0x41, 64);
 	eg_request_quote(g, nonce, &quote);
+	eg_printf(g, "Enclave received quote from quoting enclave running proxy!");
+	eg_exit(g, 0);
 #if 0
 		sendto(fd, g, DESTINATION, quote);
 	}
-
 	recvfrom(fd, DESTINATION, sekrit);
 	CHECK_RESPONSE(buffer, remoteID, seq++);
 
