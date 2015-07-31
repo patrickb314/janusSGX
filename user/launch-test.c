@@ -23,8 +23,7 @@ tcs_t *create_launch_enclave(char *enc, char *conf)
 	int keid;
 	keid_t stat;
 
-        fprintf(stdout, "Creating launch enclave of %d pages at address %p.\n", (int)npages, pages);
-        keid = create_enclave_conf(entry, pages, npages, conf);
+        keid = create_enclave_conf(entry, pages, npages, conf, NULL);
 
         if (syscall_stat_enclave(keid, &stat) < 0)
                 err(1, "failed to stat enclave");

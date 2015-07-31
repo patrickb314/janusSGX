@@ -3435,14 +3435,6 @@ void sgx_einit(CPUX86State *env)
     aes_cmac128_update(&ctx, (uint8_t *)&tmp_token, 192);
     aes_cmac128_final(&ctx, tmp_cmac);
 
-    {
-        sgx_msg(info, "Expected launch key:");
-        int l;
-		for (l = 0; l < 16; l++)
-            fprintf(stderr, "%02X", launch_key[l]);
-        fprintf(stderr, "\n");
-    }
-
 #if 0
     // Expected einittoken mac
 	{
