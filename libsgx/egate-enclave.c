@@ -10,6 +10,10 @@
  * to get us to race with ourselves, corrupt the gate, and expose secrets; for now
  * we assume there's only one TCS in the enclave but we will need some form 
  * of enclave/enclave mutual exclusion here at some point.
+ * 
+ * In addition, a lot of this is exchanges that are really best characterized
+ * as a FSM - writing them as such to get error/reset handling *provably* right
+ * would be a really good thing to do.
  */
 
 static inline int roundup2(int x, int y) {
@@ -120,14 +124,14 @@ int egate_enclave_dequeue(egate_t *g, ecmd_t *r, void *buf, size_t len)
         return ret;
 }
 
-
-int egate_enclave_cmd(egate_t *g, ecmd_t *r, void *buf, size_t len, int *done)
+int egate_enclave_poll(egate_t *g, ecmd_t *r, void *buf, size_t len)
 {
-	switch(r->t) {
-		default:
-			return -1;
-	}
-	return 0;
+        do {
+                int ret;
+                ret = egate_enclave_dequeue(g, r, buf, len);
+                if (ret) return ret;
+        } while (r->t == ECMD_NONE);
+        return 0;
 }
 
 int eg_console_write(egate_t *g, char *buf, int len)
@@ -160,10 +164,66 @@ int eg_exit(egate_t *g, int val)
 {
 	ecmd_t c;
 	c.t = ECMD_DONE;
-	c.len = sizeof(int);
-	egate_enclave_enqueue(g, &c, &val, sizeof(int));
+	c.val = val;
+	c.len = 0;
+	egate_enclave_enqueue(g, &c, NULL, 0);
 	sgx_exit();
 	return 0; /*NOTREACHED*/
+}
+
+/* Send when we get an unexpected response to a request. Should either be ignored
+ * other side or cause them to fail out of whatever they were trying to do */
+int egate_enclave_reset(egate_t *g)
+{
+	ecmd_t c;
+	c.t = ECMD_RESET;
+	c.len = 0;
+	egate_enclave_enqueue(g, &c, 0, 0);
+	return 0;
+}
+
+int egate_enclave_error(egate_t *g, char *msg)
+{
+	/* Reset the proxy if it was waiting on anything from us */
+	egate_enclave_reset(g);
+	/* Then send it a message to print */
+	eg_console_write(g, msg, strlen(msg) + 1);
+	return 0;
+}
+
+int eg_request_quote(egate_t *g, char nonce[64], quote_t *q)
+{
+	ecmd_t c;
+	int ret;
+	char lbuf[1024];
+	report_t r;
+	/* Request a quote */
+	c.t = ECMD_QUOTE_REQ;
+	c.len = 64;
+	egate_enclave_enqueue(g, &c, nonce, 64);
+
+	ret = egate_enclave_poll(g, &c, lbuf, sizeof(targetinfo_t) + 64);
+	if (ret || c.t != ECMD_REPORT_REQ 
+	    || c.len != (sizeof(targetinfo_t) + 64)
+	    || memcmp(nonce, lbuf + sizeof(targetinfo_t), 64)) {
+		egate_enclave_error(g, "Invalid report request received.");
+		return -1;
+	}
+	sgx_report(lbuf, lbuf+sizeof(targetinfo_t), &r);
+
+	c.t = ECMD_REPORT_RESP;
+	c.len = sizeof(report_t);
+	egate_enclave_enqueue(g, &c, &r, sizeof(report_t));
+
+	ret = egate_enclave_poll(g, &c, lbuf, sizeof(quote_t));
+	if (ret || c.t != ECMD_QUOTE_RESP 
+	    || c.len != sizeof(quote_t)
+	    || memcmp( ((quote_t *)lbuf)->report.reportData, nonce, 64)) {
+		egate_enclave_error(g, "Invalid quote reponse received.");
+		return -1;
+	}
+	memcpy(q, lbuf, sizeof(quote_t));
+	return 0;
 }
 
 static egate_t *default_gate;

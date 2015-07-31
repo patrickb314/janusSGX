@@ -228,47 +228,61 @@ int egate_user_sock_recv(egate_t *g, ecmd_t *r, void *buf, size_t len)
 	return 0;
 }
 
+int egate_user_request_report(egate_t *g, targetinfo_t *t, char buf[64], report_t *r)
+{
+	char lbuf[2048];
+	ecmd_t c;
+	c.t = ECMD_REPORT_REQ;
+	c.len = sizeof(targetinfo_t) + 64;
+	memcpy(lbuf, t, sizeof(targetinfo_t));
+        memcpy(lbuf+sizeof(targetinfo_t), buf, 64);
+	egate_user_enqueue(g, &c, lbuf, sizeof(targetinfo_t) + 64);
+
+	/* Now we should dequeue a REPORT_RESP */
+	egate_user_poll(g, &c, lbuf, 2048);
+	if (c.t != ECMD_REPORT_RESP) {
+		return -1;
+	}
+	if (c.len != sizeof(report_t)) {
+		return -1;
+	}
+
+	memcpy(r, lbuf, sizeof(report_t));
+
+	return 0;
+}
+
 ENCCALL2(request_quote, report_t *, quote_t *)
 
 /* Here we need to call the quoting enclave */
 int egate_user_quote(egate_t *g, ecmd_t *r, void *buf, size_t len)
 {
-	/* The user has requested a quote. First we request he issue a
-	 * report for the quoting enclave */
-	ecmd_t c;
-	char buffer[2048];
 	targetinfo_t t;
 	report_t rpt;
 	quote_t qt;
+	ecmd_t c;
+	int ret;
 
 	if (!g->quotetcs) return -1;
 	if (!g->quotesig) return -1;
+	if (r->len != 64) return -1;
 
+	/* The user has requested a quote. The nonce is provided. */
 	memset(&t, 0, sizeof(targetinfo_t));
         memcpy(&t.measurement, &g->quotesig->enclaveHash, 32);
         t.attributes = g->quotesig->attributes;
         t.miscselect = g->quotesig->miscselect;
-	memcpy(buffer, &t, sizeof(targetinfo_t));
-        memset(buffer+sizeof(targetinfo_t), 0x3b, 64);
-	
-	c.t = ECMD_REPORT_REQ;
-	c.len = sizeof(targetinfo_t) + 64;
-	egate_user_enqueue(g, &c, buffer, sizeof(targetinfo_t) + 64);
-
-	/* Now we should dequeue a REPORT_RESP */
-	egate_user_poll(g, &c, buffer, 2048);
-	if (c.t != ECMD_REPORT_RESP) {
-		return -1;
-	}
-	memcpy(&rpt, buffer, sizeof(report_t));
+	ret = egate_user_request_report(g, &t, buf, &rpt);
+	if (ret) return ret;
 
 	/* So we have a report. Get it signed. */
 	request_quote(g->quotetcs, exception_handler, &rpt, &qt);
+
+	/* Now send the resulting request back */
 	c.t = ECMD_QUOTE_RESP;
 	c.len = sizeof(quote_t);
-	memcpy(buffer, &qt, sizeof(quote_t));
+	egate_user_enqueue(g, &c, &qt, sizeof(quote_t));
 
-	egate_user_enqueue(g, &c, buffer, sizeof(quote_t));
 	return 0;
 }
 
@@ -278,9 +292,15 @@ int egate_user_cons_write(egate_t *g, ecmd_t *r, void *buf, size_t len)
 	return 0;
 }
 
+int egate_user_reset(egate_t *g, ecmd_t *r, void *buf, size_t len)
+{
+	printf("Reset received from enclave.\n");
+}
+
 typedef int (*req_handler_t)(egate_t *, ecmd_t *, void *buf, size_t len);
 
 req_handler_t dispatch[ECMD_NUM] = { 
+	[ECMD_RESET] = egate_user_reset,
 	[ECMD_CONS_WRITE] = egate_user_cons_write,
 	[ECMD_SOCK_OPEN_REQ] = egate_user_sock_open,
 	[ECMD_SOCK_CLOSE_REQ] = egate_user_sock_close,

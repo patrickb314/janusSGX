@@ -11,7 +11,6 @@ void enclave_main(egate_t *g)
 {
 	char nonce[64];
 	quote_t quote;
-	int ret;
 	eg_set_default_gate(g);
 	/* What encryption is needed along hte way in here to:
 	 * 1) Make sure we're talking to the destination we think we are
@@ -33,7 +32,7 @@ void enclave_main(egate_t *g)
 		extract_nonce(buffer, nonce);
 #endif
 	memset(nonce, 0x41, 64);
-	//eg_request_quote(g, nonce, &quote);
+	eg_request_quote(g, nonce, &quote);
 #if 0
 		sendto(fd, g, DESTINATION, quote);
 	}
