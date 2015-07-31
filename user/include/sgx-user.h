@@ -16,6 +16,8 @@
 
 extern int sgx_init(void);
 void *load_elf_enclave(char *filename, size_t *npages, void **entry, int *entoff);
+tcs_t *create_elf_enclave(char *enc, sigstruct_t *ss, einittoken_t *ei, int debug);
+tcs_t *create_elf_enclave_conf(char *enc, char *conf, sigstruct_t **ss, int debug);
 
 /* Macros to define user-side enclave calls with different argument
  * numbers */

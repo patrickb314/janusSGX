@@ -33,8 +33,8 @@ int to_npages(int size) {
     return (size - 1) / PAGE_SIZE + 1;
 }
 
-// OS resource management for enclave
-#define MAX_ENCLAVES 16
+// OS resource management for enclave - only one for now because of loading issues
+#define MAX_ENCLAVES 1 
 
 typedef struct {
     unsigned int mode_switch;
@@ -81,7 +81,8 @@ extern void enclu(enclu_cmd_t leaf, uint64_t rbx, uint64_t rcx, uint64_t rdx,
                   out_regs_t* out_regs);
 int create_enclave(void *entry, void *codes, unsigned int n_of_pages, 
 		   sigstruct_t *ss, einittoken_t *ei);
-int create_enclave_conf(void *entry, void *codes, unsigned int n_of_pages, char *conf);
+int create_enclave_conf(void *entry, void *codes, unsigned int n_of_pages, char *conf,
+			sigstruct_t **ss);
 int create_enclave_test(void *entry, void *codes, unsigned int n_of_pages);
 int init_einittoken(einittoken_t *t, sigstruct_t *ss, int intel);
 tcs_t *run_enclave(void *entry, void *codes, unsigned int n_of_pages, char *conf);

@@ -13,6 +13,9 @@ enum ecmd_type {ECMD_NONE = 0,
 		ECMD_QUOTE_RESP, 
 		ECMD_SOCK_OPEN_RESP, 
 		ECMD_SOCK_CLOSE_RESP,
+		ECMD_SOCK_BIND_RESP,
+		ECMD_SOCK_CONNECT_RESP,
+		ECMD_SOCK_ACCEPT_RESP,
 		ECMD_SOCK_SEND_RESP, 
 		ECMD_SOCK_RECV_RESP, 
 		ECMD_CONS_READ_RESP,
@@ -21,6 +24,9 @@ enum ecmd_type {ECMD_NONE = 0,
 		ECMD_QUOTE_REQ, 
 		ECMD_SOCK_OPEN_REQ, 
 		ECMD_SOCK_CLOSE_REQ,
+		ECMD_SOCK_BIND_REQ,
+		ECMD_SOCK_CONNECT_REQ,
+		ECMD_SOCK_ACCEPT_REQ,
 		ECMD_SOCK_SEND_REQ, 
 		ECMD_SOCK_RECV_REQ, 
 		ECMD_CONS_READ_REQ,
@@ -34,6 +40,7 @@ typedef enum ecmd_type ecmd_type_t;
 #define ECMD_FIRST_FROM_ENC (ECMD_LAST_FROM_USER + 1)
 #define ECMD_LAST_FROM_ENC ECMD_DONE
 #define ECMD_LAST_SYSTEM ECMD_LAST_FROM_ENC
+#define ECMD_NUM ECMD_LAST_SYSTEM+1
 
 struct ecmd {
 	ecmd_type_t t;
@@ -49,6 +56,8 @@ struct echan {
 
 struct egate {
 	tcs_t *tcs;
+	tcs_t *quotetcs;
+	sigstruct_t *quotesig;
 	echan_t *channels[2];
 };
 
@@ -64,7 +73,8 @@ static inline int echan_length(echan_t *c) {
 }
 
 int echan_init(echan_t *);
-int egate_init(egate_t *, tcs_t *, echan_t *channels[2]);
+int egate_user_init(egate_t *, tcs_t *, echan_t *channels[2]);
+int egate_proxy_init(egate_t *, tcs_t *, sigstruct_t *, echan_t *channels[2]);
 
 int egate_user_peek(egate_t *, ecmd_t *);
 int egate_user_dequeue(egate_t *, ecmd_t *, void *buf, size_t len);

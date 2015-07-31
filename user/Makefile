@@ -17,6 +17,7 @@ BASE_CFLAGS := -g -Iinclude -Wall -pedantic -Wno-unused-function -std=gnu11
 CFLAGS := $(BASE_CFLAGS)
 ENC_CFLAGS := $(BASE_CFLAGS) -I$(LIBSGXDIR)/include -fno-stack-protector -static -fPIC -fvisibility=hidden
 ENC_ASFLAGS := -D__ASSEMBLY__ -Iinclude -Wall -fno-stack-protector -static -fPIC -g
+ENC_LDFLAGS = -static -nostdlib -Wl,-T,sgx.lds
 
 BOOTSTRAP_ENCS = bootstrap/launch-enclave.sgx bootstrap/launch-enclave.conf \
 		 bootstrap/quoting-enclave.sgx bootstrap/quoting-enclave.conf \
@@ -26,7 +27,7 @@ BOOTSTRAP_ENCS = bootstrap/launch-enclave.sgx bootstrap/launch-enclave.conf \
 HDRS := $(wildcard include/sgx*.h)
 BINS := $(patsubst %.c,%.sgx,$(wildcard test/*.c)) \
         $(patsubst %.c,%.sgx,$(wildcard demo/*.c)) \
-	quote-test launch-test sgx-test bootstrap-test \
+	launch-test sgx-test generate-launch bootstrap-test \
 	egate-proxy
 ALL  := $(BINS) $(BOOTSTRAP_ENCS) sgx-tool
 
@@ -63,13 +64,13 @@ bootstrap/%.o: bootstrap/%.c $(HDRS)
 	$(CC) -c $(ENC_CFLAGS) -o $@ $<
 
 test/%.sgx: test/%.o $(SGX_LIBS)
-	$(CC) $(ENC_CFLAGS) -nostdlib -Wl,-T,sgx.lds $< $(SGX_START) -o $@  $(SGX_LDLIBS) -lgcc
+	$(CC) $(ENC_LDFLAGS) $< $(SGX_START) -o $@  $(SGX_LDLIBS) -lgcc
 
 demo/%.sgx: demo/%.o $(SGX_OBJS) $(SGX_LIBS)
-	$(CC) $(ENC_CFLAGS) -nostdlib -Wl,-T,sgx.lds $< $(SGX_START) -o $@  $(SGX_LDLIBS) -lgcc
+	$(CC) $(ENC_LDFLAGS) $< $(SGX_START) -o $@  $(SGX_LDLIBS) -lgcc
 
 bootstrap/%.sgx: bootstrap/%.o $(SGX_OBJS) $(SGX_LIBS)
-	$(CC) $(ENC_CFLAGS) -nostdlib -Wl,-T,sgx.lds $< $(SGX_START) -o $@  $(SGX_LDLIBS) -lgcc
+	$(CC) $(ENC_LDFLAGS) $< $(SGX_START) -o $@  $(SGX_LDLIBS) -lgcc
 
 bootstrap/launch-enclave.conf: bootstrap/launch-enclave.sgx sgx-tool
 	$(OPENSGX) -s $< -I
@@ -84,6 +85,9 @@ launch-test: launch-test.o $(SGX_OBJS) $(SSL_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS) -lelf
 
 quote-test: quote-test.o $(SGX_OBJS) $(SSL_OBJS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS) -lelf
+
+generate-launch: generate-launch.o $(SGX_OBJS) $(SSL_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS) -lelf
 
 bootstrap-test: bootstrap-test.o $(SGX_OBJS) $(SSL_OBJS)

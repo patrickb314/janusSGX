@@ -50,8 +50,7 @@ int main(int argc, char **argv)
 		exit(-1);
 	}
 
-	fprintf(stdout, "Creating enclave of %lu pages at address %p.\n", npages, pages);
-    	keid = create_enclave_conf(entry, pages, npages, conf);
+    	keid = create_enclave_conf(entry, pages, npages, conf, NULL);
 	
     	if (syscall_stat_enclave(keid, &stat) < 0)
         	err(1, "failed to stat enclave");

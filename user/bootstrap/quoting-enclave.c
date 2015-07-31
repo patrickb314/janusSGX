@@ -61,9 +61,9 @@ void sign_quote(quote_t *q)
 {
 	pk_context ctx;
 	pk_init(&ctx);
+
 	pk_parse_key(&ctx, (unsigned char *)quoting_key, 
 		     strlen(quoting_key), NULL, 0);
-	*(int *)2 = 0;
 	rsa_sign(pk_rsa(ctx), (unsigned char *)&q->report, 384,
                  (unsigned char *)q->sig);
 	pk_free(&ctx);

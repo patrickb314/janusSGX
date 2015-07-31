@@ -6,9 +6,10 @@
 #include <sgx-lib.h>
 #include <egate.h>
 
-char buffer[4096];
+char buffer[2048];
 void enclave_main(egate_t *g)
 {
+	eg_set_default_gate(g);
 	/* What encryption is needed along hte way in here to:
 	 * 1) Make sure we're talking to the destination we think we are
 	 * 2) Get a diffie hellman key from them for later use?
@@ -16,24 +17,25 @@ void enclave_main(egate_t *g)
 	eg_printf(g, "Test enclave starting up.\n");
 
 #if 0
+	fd = socket(...);
+	bind(fd, ...);
+	connect(fd, ...
 	/* Request the special sekrit, encrypt with destination public key */
-	eg_sendto(g, DESTINATION, 
+	sendto(g, DESTINATION, 
 		  "Give me secrets, here's a nonce and initial seqn");
-	eg_recvfrom(g, DESTINATION, buffer);
+	recvfrom(g, DESTINATION, buffer);
 
 	CHECK_RESPONSE_VALIDITY(buffer, remoteID, seq++);
 
 	if (is_quote_request(buffer)) 
-		
-		extract_nonse(buffer, nonce);
-		eg_quote_request(g, extracbuffer);
-		eg_quote_recv(g, quote);
-		eg_sendto(g, DESTINATION, quote);
+		extract_nonce(buffer, nonce);
+		requst_quote(g, nonce, quote);
+		sendto(fd, g, DESTINATION, quote);
 	}
 
-	eg_recvfrom(g, DESTINATION, sekrit);
+	recvfrom(fd, DESTINATION, sekrit);
 	CHECK_RESPONSE(buffer, remoteID, seq++);
 
-	/* If we get here, we have our secret */
+	/* If we get here, we have our secret! */
 #endif
 }

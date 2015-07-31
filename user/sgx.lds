@@ -5,7 +5,11 @@ ENTRY(enclave_start)
 SEARCH_DIR("/usr/x86_64-linux-gnu/lib64"); SEARCH_DIR("=/usr/local/lib/x86_64-linux-gnu"); SEARCH_DIR("=/usr/local/lib64"); SEARCH_DIR("=/lib/x86_64-linux-gnu"); SEARCH_DIR("=/lib64"); SEARCH_DIR("=/usr/lib/x86_64-linux-gnu"); SEARCH_DIR("=/usr/lib64"); SEARCH_DIR("=/usr/local/lib"); SEARCH_DIR("=/lib"); SEARCH_DIR("=/usr/lib");
 SECTIONS
 {
-  /* Read-only sections, merged into text segment: */
+  /* Read-only sections, merged into text segment. The address we must start
+   * at is the EPC address + 4 pages (SECS, TCS, 2*TLS). Since GNU LD wants to 
+   * align the load segment to a large page boundary, we EPC must be 
+   * allocated 4 4k pages prior to a large page boundary, and if the EPC 
+   * location changes in the SGX code, this address will need to change! */
   PROVIDE (__executable_start = SEGMENT_START("text-segment", 0x50000000)); 
   . = SEGMENT_START("text-segment", 0x50000000) + SIZEOF_HEADERS;
   .interp         : { *(.interp) }

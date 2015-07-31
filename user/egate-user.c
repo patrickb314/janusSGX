@@ -1,4 +1,5 @@
 #include <sgx.h>
+#include <sgx-user.h>
 #include <egate.h>
 
 #include <errno.h>
@@ -70,6 +71,16 @@ static int echan_copytouser(echan_t *c, int start, void *dest, size_t len)
 int echan_user_peek(echan_t *c, ecmd_t *r)
 {
 	return echan_copytouser(c, c->start, r, sizeof(ecmd_t));
+}
+
+int egate_user_poll(egate_t *g, ecmd_t *r, void *buf, size_t len)
+{
+	do {
+		int ret;
+		ret = egate_user_dequeue(g, r, buf, len);
+		if (ret) return ret;
+	} while (r->t == ECMD_NONE);
+	return 0;
 }
 
 int egate_user_dequeue(egate_t *g, ecmd_t *r, void *buf, size_t len)
@@ -192,6 +203,21 @@ int egate_user_sock_close(egate_t *g, ecmd_t *r, void *buf, size_t len)
 	return 0;
 }
 
+int egate_user_sock_bind(egate_t *g, ecmd_t *r, void *buf, size_t len)
+{
+	return 0;
+}
+
+int egate_user_sock_connect(egate_t *g, ecmd_t *r, void *buf, size_t len)
+{
+	return 0;
+}
+
+int egate_user_sock_accept(egate_t *g, ecmd_t *r, void *buf, size_t len)
+{
+	return 0;
+}
+
 int egate_user_sock_send(egate_t *g, ecmd_t *r, void *buf, size_t len)
 {
 	return 0;
@@ -202,35 +228,111 @@ int egate_user_sock_recv(egate_t *g, ecmd_t *r, void *buf, size_t len)
 	return 0;
 }
 
-int egate_user_cmd(egate_t *g, ecmd_t *r, void *buf, size_t len, int *done)
+ENCCALL2(request_quote, report_t *, quote_t *)
+
+/* Here we need to call the quoting enclave */
+int egate_user_quote(egate_t *g, ecmd_t *r, void *buf, size_t len)
 {
-	switch(r->t) {
-		case ECMD_CONS_WRITE:
-			/* This should have some more sanity checking added to it. */
-			printf("%s", (char *)buf);
-			return 0;
-		case ECMD_SOCK_OPEN_REQ:
-			return egate_user_sock_open(g, r, buf, len);
-		case ECMD_SOCK_CLOSE_REQ:
-			return egate_user_sock_close(g, r, buf, len);
-		case ECMD_SOCK_SEND_REQ:
-			return egate_user_sock_send(g, r, buf, len);
-		case ECMD_SOCK_RECV_REQ:
-			return egate_user_sock_recv(g, r, buf, len);
-		case ECMD_DONE:
-			*done = 1;
-			return 0;
-		case ECMD_NONE:
-			return 0;
-		default:
-			return -1;
+	/* The user has requested a quote. First we request he issue a
+	 * report for the quoting enclave */
+	ecmd_t c;
+	char buffer[2048];
+	targetinfo_t t;
+	report_t rpt;
+	quote_t qt;
+
+	if (!g->quotetcs) return -1;
+	if (!g->quotesig) return -1;
+
+	memset(&t, 0, sizeof(targetinfo_t));
+        memcpy(&t.measurement, &g->quotesig->enclaveHash, 32);
+        t.attributes = g->quotesig->attributes;
+        t.miscselect = g->quotesig->miscselect;
+	memcpy(buffer, &t, sizeof(targetinfo_t));
+        memset(buffer+sizeof(targetinfo_t), 0x3b, 64);
+	
+	c.t = ECMD_REPORT_REQ;
+	c.len = sizeof(targetinfo_t) + 64;
+	egate_user_enqueue(g, &c, buffer, sizeof(targetinfo_t) + 64);
+
+	/* Now we should dequeue a REPORT_RESP */
+	egate_user_poll(g, &c, buffer, 2048);
+	if (c.t != ECMD_REPORT_RESP) {
+		return -1;
 	}
+	memcpy(&rpt, buffer, sizeof(report_t));
+
+	/* So we have a report. Get it signed. */
+	request_quote(g->quotetcs, exception_handler, &rpt, &qt);
+	c.t = ECMD_QUOTE_RESP;
+	c.len = sizeof(quote_t);
+	memcpy(buffer, &qt, sizeof(quote_t));
+
+	egate_user_enqueue(g, &c, buffer, sizeof(quote_t));
 	return 0;
 }
 
-int egate_init(egate_t *g, tcs_t *tcs, echan_t *channels[2])
+int egate_user_cons_write(egate_t *g, ecmd_t *r, void *buf, size_t len)
+{
+	printf("%s", (char *)buf);
+	return 0;
+}
+
+typedef int (*req_handler_t)(egate_t *, ecmd_t *, void *buf, size_t len);
+
+req_handler_t dispatch[ECMD_NUM] = { 
+	[ECMD_CONS_WRITE] = egate_user_cons_write,
+	[ECMD_SOCK_OPEN_REQ] = egate_user_sock_open,
+	[ECMD_SOCK_CLOSE_REQ] = egate_user_sock_close,
+	[ECMD_SOCK_BIND_REQ] = egate_user_sock_bind,
+	[ECMD_SOCK_CONNECT_REQ] = egate_user_sock_connect,
+	[ECMD_SOCK_ACCEPT_REQ] = egate_user_sock_accept,
+	[ECMD_SOCK_SEND_REQ] = egate_user_sock_send,
+	[ECMD_SOCK_RECV_REQ] = egate_user_sock_recv,
+	[ECMD_QUOTE_REQ] = egate_user_quote,
+};
+
+int egate_user_cmd(egate_t *g, ecmd_t *r, void *buf, size_t len, int *done)
+{
+	req_handler_t f;
+
+	if (r->t > ECMD_LAST_SYSTEM) {
+		return -1;
+	}
+
+	if (r->t == ECMD_DONE) {
+		*done = 1;
+		return 0;
+	}
+
+ 	f = dispatch[r->t];
+
+	if (f) {
+		return f(g, r, buf, len);
+	} else {
+		return -1;
+	}
+}
+
+/* This is called in the proxy */
+int egate_proxy_init(egate_t *g, tcs_t *qtcs, sigstruct_t *qss, 
+		     echan_t *channels[2])
+{
+	g->tcs = NULL;
+	g->quotetcs = qtcs;
+	g->quotesig = qss;
+	g->channels[0] = channels[0];
+	g->channels[1] = channels[1];
+	return 0;
+}
+
+/* This is called in the program that sets up the egate and launches the
+ * enclave */
+int egate_user_init(egate_t *g, tcs_t *tcs, echan_t *channels[2])
 {
 	g->tcs = tcs;
+	g->quotetcs = NULL;
+	g->quotesig = NULL;
 	g->channels[0] = channels[0];
 	g->channels[1] = channels[1];
 	return 0;

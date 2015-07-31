@@ -21,6 +21,7 @@ static inline int min(int a, int b)
 	return a < b ? a : b;
 }
 
+
 static int echan_copytoenclave(echan_t *c, int start, void *dest, size_t len)
 {
         int cnt = 0;
@@ -163,5 +164,13 @@ int eg_exit(egate_t *g, int val)
 	egate_enclave_enqueue(g, &c, &val, sizeof(int));
 	sgx_exit();
 	return 0; /*NOTREACHED*/
+}
+
+static egate_t *default_gate;
+
+int eg_set_default_gate(egate_t *g)
+{
+	default_gate = g;
+	return 0;
 }
 

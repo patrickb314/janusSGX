@@ -122,12 +122,12 @@ void *load_elf_enclave(char *filename, size_t *npages, void **entry, int *offset
 		
 		/* First, get a zeroed memory range for all the memory we 
 		 * need. We do this to make sure we don't overlap with
-		 * other existing page ranges (like the EPC)  */
-		p = mmap((void *)start, mend-start, pflags, MAP_PRIVATE|MAP_ANONYMOUS, 
+		 * other existing page ranges (like the EPC). We don't care
+		 * where it is because it gets copied to the EPC pages before
+		 * its run. */
+		p = mmap(0, mend-start, pflags, MAP_PRIVATE|MAP_ANONYMOUS, 
 			 -1, 0);
 		if (p != (void *) start) {
-			fprintf(stderr, "WARNING: Could not get memory "
-				"at addr %p for segment.\n", (void *)start); 
 			*entry = (void *)(ehdr.e_entry + (unsigned long)p - start);
 		}
 		/* Now remap the file into the part of the mapping we just
@@ -162,3 +162,45 @@ void *load_elf_enclave(char *filename, size_t *npages, void **entry, int *offset
 	}
 }
 	
+tcs_t *create_elf_enclave_conf(char *enc, char *conf, sigstruct_t **ss, int debug)
+{
+        size_t npages;
+        void *entry;
+        int keid, toff;
+        void* pages = load_elf_enclave(enc, &npages, &entry, &toff);
+        keid_t stat;
+
+        keid = create_enclave_conf(entry, pages, npages, conf, ss);
+
+        if (syscall_stat_enclave(keid, &stat) < 0)
+                err(1, "failed to stat enclave");
+        if (debug) {
+                fprintf(stdout,
+                        "Add enclave symbols to GDB using \"add-symbol-file %s %p\"\n",
+                        enc, (void  *)(stat.enclave + stat.tcs->oentry - toff));
+        }
+
+        return stat.tcs;
+}
+
+tcs_t *create_elf_enclave(char *enc, sigstruct_t *ss, einittoken_t *ei, int debug)
+{
+        size_t npages;
+        void *entry;
+        void* pages = load_elf_enclave(enc, &npages, &entry, 0);
+        int keid, toff;
+        keid_t stat;
+
+        keid = create_enclave(entry, pages, npages, ss, ei);
+
+        if (syscall_stat_enclave(keid, &stat) < 0)
+                err(1, "failed to stat enclave");
+
+        if (debug) {
+                fprintf(stdout,
+                        "Add enclave symbols to GDB using \"add-symbol-file %s %p\"\n",
+                        enc, (void  *)(stat.enclave + stat.tcs->oentry - toff));
+        }
+
+        return stat.tcs;
+}

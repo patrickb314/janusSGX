@@ -236,7 +236,7 @@ void update_einittoken(einittoken_t *token)
 
 tcs_t *run_enclave(void *entry, void *codes, unsigned int n_of_pages, char *conf)
 {
-    int keid = create_enclave_conf(entry, codes, n_of_pages, conf);
+    int keid = create_enclave_conf(entry, codes, n_of_pages, conf, NULL);
     
     if (keid < 0)
         err(1, "failed to create enclave");
@@ -320,7 +320,7 @@ int create_enclave(void *entry, void *codes, unsigned int n_of_code_pages,
 }
 
 int create_enclave_conf(void *entry, void *codes, unsigned int n_of_code_pages, 
-		   	char *conf)
+		   	char *conf, sigstruct_t **ss)
 {
 
 
@@ -359,12 +359,13 @@ int create_enclave_conf(void *entry, void *codes, unsigned int n_of_code_pages,
 	// load einittoken from file
 	token = load_einittoken(conf);
     }
+    if (ss) *ss = sigstruct;
     return create_enclave(entry, codes, n_of_code_pages, sigstruct, token);
 }
 
 tcs_t *run_enclave_test(void *entry, void *codes, unsigned int n_of_code_pages)
 {
-    int keid = create_enclave_conf(entry, codes, n_of_code_pages, NULL);
+    int keid = create_enclave_conf(entry, codes, n_of_code_pages, NULL, NULL);
 
     if (syscall_stat_enclave(keid, &stat) < 0)
         err(1, "failed to stat enclave");

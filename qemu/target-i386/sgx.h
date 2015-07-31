@@ -57,8 +57,8 @@
 /// custom format
 #define PRIfptr "0x%016"PRIxPTR
 
-/// QEMU resource management for enclave
-#define MAX_ENCLAVES 16
+/// QEMU resource management for enclave - only 1 for now because of loading issues
+#define MAX_ENCLAVES 1
 
 typedef uint8_t rsa_key_t[KEY_LENGTH];
 typedef uint8_t rsa_sig_t[KEY_LENGTH];
