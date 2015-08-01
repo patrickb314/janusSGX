@@ -25,34 +25,41 @@ Current Todo:
   * Create copy routines
   * Switch existing enclaves over to use new copy routines
 --------------- DONE THROUGH HERE ---------------
-+ Get more of SSL/TLS running in enclave space - PARTIALLY DONE
+* Get more of SSL/TLS running in enclave space - PARTIALLY DONE
   * Polar SSL AES CMAC for launch token generation - DONE
-  + Look into switching to libcrypto from boringssl - DEFERRED
-  + Look into using s2n for TLS - DEFERRED
-  - RSA for quoting enclave signing - TODO
-  - An entropy source in enclaves (probably implement RDRAND instruction in
-    qemu using /dev/urandom) - DEFERED
-  - SSL/TLS communication primitives from enclaves - TODO
+  * Look into switching to libcrypto from boringssl - NO, boring ssl looks a bit of a mess 
+  * Look into using s2n for TLS - Not going to do this for now since PolarSSL is working
+  * RSA for quoting enclave signing - DONE (using PolarSSL)
+* Switch to having one enclave per executable and having them run at a defined address to 
+  deal with dynamic loading issues - DONE
+* Switch to using stock mbedtls install - DONE
+* Get GDB debugging working - DONE
+* Get an actual quoting enclave running - DONE
 + Create call in with two shared buffers and command structure for it - IN PROGRESS
   * Get basic enclave gate abstraction set - DONE
   * Get a buffer for output from enclaves that can support the equivalent of 
     printf - DONE
-  - Add REPORT_REQ/REPORT_RESP egate events calls for bootstraping, where
-    the user code proxies for the report - TODO
-  - Define a high-speed communication channel out of the enclave - basically 
-    SENDTO/RECVFROM commands over the shared buffer channel - TODO
-  - Add QUOTE_REQ/QUOTE_RESP egate events for enclaves to request quotes
+  * Add REPORT_REQ/REPORT_RESP egate events calls for bootstraping, where
+    the user code proxies for the report - DONE
+  * Add QUOTE_REQ/QUOTE_RESP egate events for enclaves to request quotes
     from user code
+  - Finish debugging basic communication channel details, including making some more 
+    test cases that test wrap-around and channel reset - IN PROGRESS
 + Bootstrap code - IN PROGRESS
   * Parse options on startup
   * Create and save launch tokens
-  - Switch to running enclave in its own thread
-  - Better basic event loop 
-  - Locally attest the 
+  * Switch to running enclave in its own thread - REJECTED as not doable in current qemu
+  - Switch Makefile to have a bootstrap target and an all target
+  - Switch sgx-tool to use launch enclave to create launch tokens - DEFERRED
 + Better runtime support - IN PROGRESS
   * Change the starting heap size to something decent
   - Get a real bootmem allocator in place 
-+ Get an actual quoting enclave running - DEFERED waiting for RSA above
+- Socket/TLS support
+  - Create a socket shim/proxy out of the enclave using sendto/recvfrom commands over the 
+    shared buffer channel 
+  - An entropy source in enclaves (probably implement RDRAND instruction in
+    qemu using /dev/urandom)
+  - SSL/TLS communication primitives from enclaves 
 --------------- LONGER-TERM AFTER HERE ---------------
 - Fix CSSA setup to actually set it to proper values and still sign correctly 
   in the emulator. Once this is done, we can turn on the exception handler 
@@ -63,6 +70,10 @@ Current Todo:
   given the emulator's strange behavior
 - Add EAUG support for the heap
 - Reintegrate many changes into GT tree, potentially as a separate runtime?
+- Define a proper FSM for the enclave/proxy interface that generates the 
+  exchange information, and can be proved safe.
+- Create bootstrap code that includes the rest of the enclave code as a binary blob and
+  dynamically loads it at runtime a la kernel loadable modules. Will break debugging support.
 ***
 
 Longer-term issues:
@@ -105,7 +116,7 @@ Information on the original GT simulator:
      saving to approximate standard EEXIT behavior. (Otherwise, EENTER
      will eventually fail when you run out of SSA entries.)
 
-Launch Enclave Design - DONE (except for inittoken consistency checks):
+Launch Enclave Design - DONE
 * User-space
   * load and set the intel key.
   * Initialize the launch enclave 
@@ -119,10 +130,3 @@ Launch Enclave Design - DONE (except for inittoken consistency checks):
   * Compute the launch token MAC.
   * Save the signature in the initkey
   * return
-
-Location attestation test case:
-
-Quoting Enclave Design - :
-
-***
-
