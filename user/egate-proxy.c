@@ -125,7 +125,7 @@ int main(int argc, char **argv)
 			       " LEN %lu.\n", c.t, c.len);
                         egate_user_cmd(&e, &c, buffer, 2048, &done);
                 } else {
-                        printf("User-specific communication from enclave: CMD %d"
+                        printf("Unhandled user-specific communication from enclave: CMD %d"
 			       " LEN %lu.\n", c.t, c.len);
                 }
 	}

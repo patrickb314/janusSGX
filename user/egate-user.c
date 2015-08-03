@@ -103,7 +103,7 @@ int egate_user_dequeue(egate_t *g, ecmd_t *r, void *buf, size_t len)
 	/* Now we know we actually have the space to dequeue the full command, 
 	 * so get the data as well and then increment start by the full 
 	 * amount */
-	start += sizeof(ecmd_t);
+	start += roundup2(sizeof(ecmd_t), 8);
 	if (r->len) {
 		ret = echan_copytouser(c, start, buf, r->len);
 	}
@@ -325,6 +325,7 @@ int egate_user_cmd(egate_t *g, ecmd_t *r, void *buf, size_t len, int *done)
 	}
 
 	if (r->t == ECMD_DONE) {
+		fprintf(stdout, "Found done command.\n");
 		*done = 1;
 		return 0;
 	}

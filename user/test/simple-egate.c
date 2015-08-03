@@ -7,9 +7,13 @@
 void enclave_main(egate_t *g)
 {
 	static int done = 0;
-	while (!done) {
-		eg_printf(g, "Hello from the enclave through egate %p.\n", g);
-		done = 1;
-		eg_exit(g, 0);
+	int i = 0;
+	if (!done) {
+		for (i = 10; i > 0; i--) {
+			eg_printf(g, 
+				  "Hello %d from the enclave %p.\n", i, g);
+		}
 	}
+	done = 1;
+	eg_exit(g, 0);
 }

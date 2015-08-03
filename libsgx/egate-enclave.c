@@ -84,11 +84,13 @@ int egate_enclave_enqueue(egate_t *g, ecmd_t *r, void *buf, size_t len)
 
 	ret = echan_copyfromenclave(c, end, r, sizeof(ecmd_t));
 	if (ret) return ret;
-	end = (end + sizeof(ecmd_t)) % ECHAN_BUF_SIZE;
+	end = roundup2(end + sizeof(ecmd_t), 8) % ECHAN_BUF_SIZE;
 
-	ret = echan_copyfromenclave(c, end, buf, r->len);
-	if (ret) return ret;
-	end = roundup2((end + r->len), 8) % ECHAN_BUF_SIZE;
+	if (r->len) {
+		ret = echan_copyfromenclave(c, end, buf, r->len);
+		if (ret) return ret;
+	}
+	end = roundup2(end + r->len, 8) % ECHAN_BUF_SIZE;
 
 	/* XXX need a memory barrier here, though since hte copy is in a function
 	 * call that hopefully isn't optimized away, we could be okay for now. */
@@ -141,7 +143,10 @@ int eg_console_write(egate_t *g, char *buf, int len)
 
 	c.t = ECMD_CONS_WRITE;
 	c.len = len;
-	ret = egate_enclave_enqueue(g, &c, buf, len);
+	do {
+	    ret = egate_enclave_enqueue(g, &c, buf, len);
+	} while (ret < 0);
+
 	if (ret) return -1;
 	
 	return len;
