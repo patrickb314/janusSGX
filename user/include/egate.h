@@ -17,22 +17,26 @@ enum ecmd_type {ECMD_NONE = 0,
 		ECMD_QUOTE_RESP, 
 		ECMD_SOCK_OPEN_RESP, 
 		ECMD_SOCK_CLOSE_RESP,
+		ECMD_SOCK_SHUTDOWN_RESP,
 		ECMD_SOCK_BIND_RESP,
 		ECMD_SOCK_CONNECT_RESP,
 		ECMD_SOCK_ACCEPT_RESP,
-		ECMD_SOCK_SEND_RESP, 
-		ECMD_SOCK_RECV_RESP, 
+		ECMD_SOCK_LISTEN_RESP,
+		ECMD_SOCK_READ_RESP, 
+		ECMD_SOCK_WRITE_RESP, 
 		ECMD_CONS_READ_RESP,
 		/* From enclave to user */
 		ECMD_REPORT_RESP, 
 		ECMD_QUOTE_REQ, 
 		ECMD_SOCK_OPEN_REQ, 
 		ECMD_SOCK_CLOSE_REQ,
+		ECMD_SOCK_SHUTDOWN_REQ,
 		ECMD_SOCK_BIND_REQ,
 		ECMD_SOCK_CONNECT_REQ,
 		ECMD_SOCK_ACCEPT_REQ,
-		ECMD_SOCK_SEND_REQ, 
-		ECMD_SOCK_RECV_REQ, 
+		ECMD_SOCK_LISTEN_REQ,
+		ECMD_SOCK_READ_REQ, 
+		ECMD_SOCK_WRITE_REQ, 
 		ECMD_CONS_READ_REQ,
 		ECMD_CONS_WRITE, 
 		ECMD_DONE};
@@ -100,6 +104,8 @@ int eg_set_default_gate(egate_t *g);
 /* UNIX stubs */
 #define DECLARE_UNIX_STUB1(name, t1) \
     int eg_##name(egate_t *g, t1);
+#define DECLARE_UNIX_STUB2(name, t1, t2) \
+    int eg_##name(egate_t *g, t1, t2);
 #define DECLARE_UNIX_STUB3(name, t1, t2, t3) \
     int eg_##name(egate_t *g, t1, t2, t3);
 
@@ -108,5 +114,9 @@ DECLARE_UNIX_STUB3(socket, int, int, int)
 DECLARE_UNIX_STUB3(bind, int, const struct sockaddr *, socklen_t)
 DECLARE_UNIX_STUB3(accept, int, struct sockaddr *, socklen_t *)
 DECLARE_UNIX_STUB3(connect, int, const struct sockaddr *, socklen_t)
+DECLARE_UNIX_STUB2(listen, int, int)
+DECLARE_UNIX_STUB3(read, int, void *, size_t)
+DECLARE_UNIX_STUB2(shutdown, int, int)
+DECLARE_UNIX_STUB3(write, int, const void *, size_t)
 
 #endif /* _EGATE_H_ */

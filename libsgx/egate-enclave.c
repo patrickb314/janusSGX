@@ -18,6 +18,12 @@
  * would be a really good thing to do.
  */
 
+/* This should switch to be tcs-specific at some point */
+static int _global_errno;
+int * __errno_location(void) {
+	return &_global_errno;
+}
+
 static inline int roundup2(int x, int y) {
 	return (x + y - 1) & ~(y-1);
 }
@@ -254,6 +260,14 @@ int eg_set_default_gate(egate_t *g)
     }\
     int eg_##name(egate_t *g, t1 v1)
 
+#define DEFINE_UNIX_STUB2(name, t1, v1, t2, v2) \
+    int name(t1 v1, t2 v2) \
+    { \
+	DEFAULT_GATE_CHECK \
+	return eg_##name(default_gate, v1, v2);\
+    }\
+    int eg_##name(egate_t *g, t1 v1, t2 v2)
+
 #define DEFINE_UNIX_STUB3(name, t1, v1, t2, v2, t3, v3) \
     int name(t1 v1, t2 v2, t3 v3) \
     { \
@@ -308,7 +322,7 @@ DEFINE_UNIX_STUB3(bind, int, sockfd, const struct sockaddr *, addr, socklen_t, a
 		return -1;
 	}
 	errno = 0;
-	return 0;
+	return c.val;
 }
 
 DEFINE_UNIX_STUB3(accept, int, sockfd, struct sockaddr *, addr, socklen_t *, addrlen)
@@ -357,7 +371,7 @@ DEFINE_UNIX_STUB1(close, int, fd)
 		return -1;
 	}
 	errno = 0;
-	return 0;
+	return c.val;
 }
 
 DEFINE_UNIX_STUB3(connect, int, sockfd, const struct sockaddr *, addr, socklen_t, addrlen)
@@ -382,17 +396,111 @@ DEFINE_UNIX_STUB3(connect, int, sockfd, const struct sockaddr *, addr, socklen_t
 	errno = 0;
 	return c.val;
 }
+
+
+DEFINE_UNIX_STUB2(listen, int, sockfd, int, backlog)
+{
+	ecmd_t c;
+	int ret;
+
+	c.t = ECMD_SOCK_LISTEN_REQ;
+	c.val = sockfd;
+	c.len = sizeof(backlog);
+	egate_enclave_enqueue(g, &c, (void *)&backlog, sizeof(backlog));
+
+	ret = egate_enclave_poll(g, &c, NULL, 0);
+	if (ret || (c.t != ECMD_SOCK_LISTEN_RESP) || c.len != 0) {
+		egate_enclave_error(g, "Invalid listen response received.");
+		errno = EINVAL;
+		return -1;
+	}
+	if (c.val < 0) {
+		errno = -c.val;
+		return -1;
+	}
+	errno = 0;
+	return c.val;
+}
+
+#ifndef MIN
+#define MIN(a,b) (((a) < (b)) ? (a) : (b))
+#endif
+
+DEFINE_UNIX_STUB3(read, int, sockfd, void *, buf, size_t, len)
+{
+	ecmd_t c;
+	int ret;
+	len = MIN(len, ECHAN_REQ_LIMIT);
+	c.t = ECMD_SOCK_READ_REQ;
+	c.val = sockfd;
+	c.len = sizeof(len);
+	egate_enclave_enqueue(g, &c, &len, sizeof(len));
+	ret = egate_enclave_poll(g, &c, buf, len);
+	if (ret || (c.t != ECMD_SOCK_READ_RESP)) {
+		egate_enclave_error(g, "Invalid read response received.");
+		return -1;
+	}
+	if (c.val < 0) {
+		errno = -c.val;
+		return -1;
+	}
+	errno = 0;
+	return c.val;
+}
+
+DEFINE_UNIX_STUB2(shutdown, int, sockfd, int, how)
+{
+	ecmd_t c;
+	int ret;
+
+	c.t = ECMD_SOCK_SHUTDOWN_REQ;
+	c.val = sockfd;
+	c.len = sizeof(how);
+	egate_enclave_enqueue(g, &c, (void *)&how, sizeof(how));
+
+	ret = egate_enclave_poll(g, &c, NULL, 0);
+	if (ret || (c.t != ECMD_SOCK_SHUTDOWN_RESP) || c.len != 0) {
+		egate_enclave_error(g, "Invalid listen response received.");
+		errno = EINVAL;
+		return -1;
+	}
+	if (c.val < 0) {
+		errno = -c.val;
+		return -1;
+	}
+	errno = 0;
+	return c.val;
+}
+
+DEFINE_UNIX_STUB3(write, int, sockfd, const void *, buf, size_t, len)
+{
+	ecmd_t c;
+	int ret;
+	len = MIN(len, ECHAN_REQ_LIMIT);
+	c.t = ECMD_SOCK_READ_REQ;
+	c.val = sockfd;
+	c.len = len;
+	egate_enclave_enqueue(g, &c, (void *)buf, len);
+	ret = egate_enclave_poll(g, &c, NULL, 0);
+	if (ret || (c.t != ECMD_SOCK_WRITE_RESP)) {
+		egate_enclave_error(g, "Invalid write response received.");
+		return -1;
+	}
+	if (c.val < 0) {
+		errno = -c.val;
+		return -1;
+	}
+	errno = 0;
+	return c.val;
+}
+
 /*
 	TODO:
                  U __errno_location
                  U fcntl
                  U freeaddrinfo
                  U getaddrinfo
-                 U listen
-                 U read
                  U setsockopt
-                 U shutdown
-                 U write
 */
 typedef void (*sighandler_t)(int);
 sighandler_t signal(int sig, sighandler_t h)
