@@ -21,7 +21,6 @@ void rsa_sign(rsa_context *ctx, unsigned char *input, size_t bytes,
 }
 
 #define RDRAND_RETRY_LOOPS 10
-/* Instead of arch_get_random_long() when alternatives haven't run. */
 static inline int rdrand_long(unsigned long *v)
 {
         int ok;
@@ -40,13 +39,15 @@ static int rdrand_data_source(void *data, unsigned char *output, size_t len, siz
 {
 	uint64_t *pout = (uint64_t *)output;
 	int i;
-	for (i = 0; i < len/8; i++)
+
+	len = len & ~0x7;
+	for (i = 0; i < len; i+=8)
 	{
-		if (rdrand_long(pout + i)) {
+		if (!rdrand_long(pout + i)) {
 			break;
 		}
 	}
-	*olen = (i - 1) * 8;
+	*olen = i;
 	return 0;
 }
 
