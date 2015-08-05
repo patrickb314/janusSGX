@@ -9,6 +9,7 @@ libsgx.a: $(LIBSGX_OBJS)
 	$(AR) rs $@ $^
 
 clean: 
+	make -C mbedtls-1.3.11 clean
 	rm -f libpolarssl.a $(LIBSGX_OBJS)
 
 libpolarssl.a: mbedtls-config-libsgx.h

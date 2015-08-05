@@ -12,9 +12,9 @@
 #define POLARSSL_HAVE_ASM
 #define POLARSSL_NO_PLATFORM_ENTROPY
 
-/* Networking support for a little later */
-//#define POLARSSL_HAVE_IPV6 /* Now mandatory for NET_C */
-//#define POLARSSL_NET_C
+/* Networking support */
+#define POLARSSL_HAVE_IPV6 /* Now mandatory for NET_C */
+#define POLARSSL_NET_C
 
 /* mbed TLS feature support */
 #define POLARSSL_KEY_EXCHANGE_PSK_ENABLED

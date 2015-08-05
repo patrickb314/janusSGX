@@ -1,6 +1,9 @@
 #ifndef _EGATE_H_
 #define _EGATE_H_
 
+#include <sys/types.h>
+#include <sys/socket.h>
+
 typedef struct ecmd ecmd_t;
 typedef struct echan echan_t;
 typedef struct egate egate_t;
@@ -46,6 +49,7 @@ struct ecmd {
 };
 
 #define ECHAN_BUF_SIZE 2040
+#define ECHAN_REQ_LIMIT 1536
 struct echan {
 	int start, end;
 	char buffer[ECHAN_BUF_SIZE];
@@ -88,9 +92,21 @@ int egate_enclave_enqueue(egate_t *, ecmd_t *, void *buf, size_t len);
 int egate_enclave_cmd(egate_t *, ecmd_t *, void *buf, size_t len, int *done);
 
 int eg_printf(egate_t *, char *, ...);
-int eg_exit(egate_t *, int);
+void __attribute__((noreturn)) eg_exit(egate_t *, int);
 
 int eg_request_quote(egate_t *, char nonce[64], quote_t *);
 int eg_set_default_gate(egate_t *g);
+
+/* UNIX stubs */
+#define DECLARE_UNIX_STUB1(name, t1) \
+    int eg_##name(egate_t *g, t1);
+#define DECLARE_UNIX_STUB3(name, t1, t2, t3) \
+    int eg_##name(egate_t *g, t1, t2, t3);
+
+DECLARE_UNIX_STUB1(close, int)
+DECLARE_UNIX_STUB3(socket, int, int, int)
+DECLARE_UNIX_STUB3(bind, int, const struct sockaddr *, socklen_t)
+DECLARE_UNIX_STUB3(accept, int, struct sockaddr *, socklen_t *)
+DECLARE_UNIX_STUB3(connect, int, const struct sockaddr *, socklen_t)
 
 #endif /* _EGATE_H_ */

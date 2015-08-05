@@ -1,6 +1,8 @@
+#include <errno.h>
 #include <sgx.h>
 #include <sgx-lib.h>
 #include <egate.h>
+#include <signal.h>
 #include <stdarg.h>
 
 /* We always work with a local copy of the enclave via copyin/copyout
@@ -165,15 +167,17 @@ int eg_printf(egate_t *g, char *fmt, ...)
 	return eg_console_write(g, buf, len + 1);
 }
 
-int eg_exit(egate_t *g, int val)
+void eg_exit(egate_t *g, int val) 
 {
-	ecmd_t c;
-	c.t = ECMD_DONE;
-	c.val = val;
-	c.len = 0;
-	egate_enclave_enqueue(g, &c, NULL, 0);
+	if (g) {
+		ecmd_t c;
+		c.t = ECMD_DONE;
+		c.val = val;
+		c.len = 0;
+		egate_enclave_enqueue(g, &c, NULL, 0);
+	}
 	sgx_exit();
-	return 0; /*NOTREACHED*/
+	exit(val); /*NOTREACHED - suppresses noreturn warning*/
 }
 
 /* Send when we get an unexpected response to a request. Should either be ignored
@@ -200,7 +204,7 @@ int eg_request_quote(egate_t *g, char nonce[64], quote_t *q)
 {
 	ecmd_t c;
 	int ret;
-	char lbuf[1024];
+	char lbuf[ECHAN_REQ_LIMIT];
 	report_t r;
 	/* Request a quote */
 	c.t = ECMD_QUOTE_REQ;
@@ -231,11 +235,173 @@ int eg_request_quote(egate_t *g, char nonce[64], quote_t *q)
 	return 0;
 }
 
+/* UNIX Stub calls */
 static egate_t *default_gate;
 
+/* And now UNIX API versions of the calls above that use the default gate */
 int eg_set_default_gate(egate_t *g)
 {
 	default_gate = g;
 	return 0;
 }
 
+#define DEFAULT_GATE_CHECK { if (!default_gate) return -1; /*SET ERRNO*/ }
+#define DEFINE_UNIX_STUB1(name, t1, v1) \
+    int name(t1 v1) \
+    { \
+	DEFAULT_GATE_CHECK \
+	return eg_##name(default_gate, v1);\
+    }\
+    int eg_##name(egate_t *g, t1 v1)
+
+#define DEFINE_UNIX_STUB3(name, t1, v1, t2, v2, t3, v3) \
+    int name(t1 v1, t2 v2, t3 v3) \
+    { \
+	DEFAULT_GATE_CHECK \
+	return eg_##name(default_gate, v1, v2, v3);\
+    }\
+    int eg_##name(egate_t *g, t1 v1, t2 v2, t3 v3)
+
+DEFINE_UNIX_STUB3(socket, int, domain, int, type, int, protocol)
+{
+	ecmd_t c;
+	int ret;
+	int lbuf[12];
+
+	c.t = ECMD_SOCK_OPEN_REQ;
+	*(int *)(lbuf) = domain;
+	*(int *)(lbuf + 4) = type;
+	*(int *)(lbuf + 8) = protocol;
+	c.len = 12;
+	egate_enclave_enqueue(g, &c, lbuf, 12);
+	ret = egate_enclave_poll(g, &c, NULL, 0);
+	if (ret || (c.t != ECMD_SOCK_OPEN_RESP) || c.len != 0) {
+		egate_enclave_error(g, "Invalid socket response received.");
+		errno = EINVAL;
+		return -1;
+	}
+	if (c.val < 0) {
+		errno = -c.val;
+		return -1;
+	}
+	errno = 0;
+	return c.val;
+}
+
+DEFINE_UNIX_STUB3(bind, int, sockfd, const struct sockaddr *, addr, socklen_t, addrlen)
+{
+	ecmd_t c;
+	int ret;
+	if (addrlen > ECHAN_REQ_LIMIT) return -1;
+	c.t = ECMD_SOCK_BIND_REQ;
+	c.val = sockfd;
+	c.len = addrlen;
+	egate_enclave_enqueue(g, &c, (void *)addr, addrlen);
+	ret = egate_enclave_poll(g, &c, NULL, 0);
+	if (ret || (c.t != ECMD_SOCK_BIND_RESP) || c.len != 0) {
+		egate_enclave_error(g, "Invalid bind response received.");
+		errno = EINVAL;
+		return -1;
+	}
+	if (c.val < 0) {
+		errno = -c.val;
+		return -1;
+	}
+	errno = 0;
+	return 0;
+}
+
+DEFINE_UNIX_STUB3(accept, int, sockfd, struct sockaddr *, addr, socklen_t *, addrlen)
+{
+	ecmd_t c;
+	int ret;
+	if (!addrlen || *addrlen > ECHAN_REQ_LIMIT) {
+		errno = EINVAL;
+		return -1;
+	}
+	c.t = ECMD_SOCK_ACCEPT_REQ;
+	c.val = sockfd;
+	c.len = 0;
+	egate_enclave_enqueue(g, &c, NULL, 0);
+	ret = egate_enclave_poll(g, &c, addr, *addrlen);
+	if (ret || (c.t != ECMD_SOCK_ACCEPT_RESP)) {
+		egate_enclave_error(g, "Invalid accept response received.");
+		return -1;
+	}
+	if (c.val < 0) {
+		errno = -c.val;
+		return -1;
+	}
+	errno = 0;
+	*addrlen = c.len;
+	return c.val;
+}
+
+DEFINE_UNIX_STUB1(close, int, fd)
+{
+	ecmd_t c;
+	int ret;
+
+	c.t = ECMD_SOCK_CLOSE_REQ;
+	c.val = fd;
+	c.len = 0;
+	egate_enclave_enqueue(g, &c, NULL, 0);
+
+	ret = egate_enclave_poll(g, &c, NULL, 0);
+	if (ret || (c.t != ECMD_SOCK_CLOSE_RESP)) {
+		egate_enclave_error(g, "Invalid close response received.");
+		return -1;
+	}
+	if (c.val < 0) {
+		errno = c.val;
+		return -1;
+	}
+	errno = 0;
+	return 0;
+}
+
+DEFINE_UNIX_STUB3(connect, int, sockfd, const struct sockaddr *, addr, socklen_t, addrlen)
+{
+	ecmd_t c;
+	int ret;
+	if (addrlen > ECHAN_REQ_LIMIT) return -1;
+	c.t = ECMD_SOCK_CONNECT_REQ;
+	c.val = sockfd;
+	c.len = addrlen;
+	egate_enclave_enqueue(g, &c, (void *)addr, addrlen);
+	ret = egate_enclave_poll(g, &c, NULL, 0);
+	if (ret || (c.t != ECMD_SOCK_CONNECT_RESP) || c.len != 0) {
+		egate_enclave_error(g, "Invalid connect response received.");
+		errno = EINVAL;
+		return -1;
+	}
+	if (c.val < 0) {
+		errno = -c.val;
+		return -1;
+	}
+	errno = 0;
+	return c.val;
+}
+/*
+	TODO:
+                 U __errno_location
+                 U fcntl
+                 U freeaddrinfo
+                 U getaddrinfo
+                 U listen
+                 U read
+                 U setsockopt
+                 U shutdown
+                 U write
+*/
+typedef void (*sighandler_t)(int);
+sighandler_t signal(int sig, sighandler_t h)
+{
+	return SIG_ERR;
+}
+
+void exit(int val)
+{
+	eg_exit(default_gate, val);
+	exit(val); /*NOTREACHED - suppresses noreturn warning*/
+}
