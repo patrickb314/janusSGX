@@ -37,15 +37,15 @@ static inline int rdrand_long(unsigned long *v)
 /* Consider switching to RDSEED when we know we have it... */
 static int rdrand_data_source(void *data, unsigned char *output, size_t len, size_t *olen)
 {
-	uint64_t *pout = (uint64_t *)output;
 	int i;
-
 	len = len & ~0x7;
 	for (i = 0; i < len; i+=8)
 	{
-		if (!rdrand_long(pout + i)) {
+		uint64_t data;
+		if (!rdrand_long(&data)) {
 			break;
 		}
+		*(uint64_t *)(output + i) = data;
 	}
 	*olen = i;
 	return 0;

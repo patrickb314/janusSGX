@@ -50,9 +50,9 @@ Current Todo:
   * Create and save launch tokens
   * Switch to running enclave in its own thread - REJECTED as not doable in current qemu
   * Implement RDRAND in qemu so we can get an ephemeral key - DONE
-  - Debug random number generation in polarssl - IN PROGRESS
+  + Switch sgx-tool to use launch enclave to create launch tokens - DEFERRED
+  - Fix RDRAND feature checking/setting in qemu 
   - Switch Makefile to have a bootstrap target and an all target
-  - Switch sgx-tool to use launch enclave to create launch tokens - DEFERRED
 + Better runtime support - IN PROGRESS
   * Change the starting heap size to something decent
   - Get a real bootmem allocator in place 
