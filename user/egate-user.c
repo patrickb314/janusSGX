@@ -325,7 +325,6 @@ int egate_user_cmd(egate_t *g, ecmd_t *r, void *buf, size_t len, int *done)
 	}
 
 	if (r->t == ECMD_DONE) {
-		fprintf(stdout, "Found done command.\n");
 		*done = 1;
 		return 0;
 	}

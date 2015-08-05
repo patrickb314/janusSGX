@@ -18,7 +18,6 @@ target_ulong helper_rdrand(CPUX86State *env, uint32_t type)
     }
    
     rdsz = read(fdrandom, &data, insz);
-    fprintf(stdout, "Read %lu random bytes (%lx) from /dev/urandom.\n", rdsz, data);
 	
     if (rdsz < insz) {
 	return 0;

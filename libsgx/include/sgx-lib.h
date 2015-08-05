@@ -55,6 +55,7 @@ extern void _enclu(enclu_cmd_t leaf, uint64_t rbx, uint64_t rcx, uint64_t rdx,
 extern void aes_cmac(unsigned char *key, unsigned char *input, size_t bytes, unsigned char *mac);
 extern void rsa_sign(rsa_context *ctx, unsigned char *input, size_t bytes, 
               	    unsigned char *sig);
+void enclave_entropy_init( entropy_context *ctx );
 
 void *copyin(void *dest, const void *src, size_t size);
 void *copyout(void *dest, const void *src, size_t size);

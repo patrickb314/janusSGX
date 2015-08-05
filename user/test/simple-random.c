@@ -11,7 +11,8 @@ void enclave_main(egate_t *g)
 	ctr_drbg_context rctx;
 	enclave_entropy_init(&ectx);
 	ctr_drbg_init(&rctx, entropy_func, &ectx, NULL, 0);
-	ctr_drbg_random(&rctx, &random, sizeof(int));
+	ctr_drbg_random(&rctx, (unsigned char *)&random, sizeof(int));
 	eg_printf(g, 
-		  "Random number %d from the enclave.\n", random);
+		  "Generated random number 0x%x in the enclave.\n", random);
+	eg_exit(g, 0);
 }

@@ -14,6 +14,7 @@
 #include <sys/socket.h>
 
 #include <egate.h>
+#define GDB_DEBUG 0
 
 ENCCALL1(enclave_main, egate_t *)
 
@@ -44,7 +45,8 @@ int main(int argc, char **argv)
     	sys_sgx_init(NULL);
 
 	/* Now load and create the enclave question */
-	testtcs = create_elf_enclave_conf(testenc, testconf, NULL, 1);
+	testtcs = create_elf_enclave_conf(testenc, testconf, NULL, 
+					  GDB_DEBUG);
 
 	/* Create a gate to run and communicate with the test enclave */
 	strcpy(tmpname, "/tmp/echan.XXXXXX");

@@ -22,12 +22,12 @@ ENC_LDFLAGS = -static -nostdlib -Wl,-T,sgx.lds
 BOOTSTRAP_ENCS = bootstrap/launch-enclave.sgx bootstrap/launch-enclave.conf \
 		 bootstrap/quoting-enclave.sgx bootstrap/quoting-enclave.conf \
 		 bootstrap/attesting-enclave.sgx bootstrap/attesting-enclave.conf \
-		bootstrap/test-enclave.sgx bootstrap/test-enclave.conf
+		 bootstrap/test-enclave.sgx bootstrap/test-enclave.conf
 
 HDRS := $(wildcard include/sgx*.h)
 BINS := $(patsubst %.c,%.sgx,$(wildcard test/*.c)) \
         $(patsubst %.c,%.sgx,$(wildcard demo/*.c)) \
-	launch-test sgx-test generate-launch bootstrap-test \
+	launch-test sgx-test generate-launch egate-test \
 	egate-proxy
 ALL  := $(BINS) $(BOOTSTRAP_ENCS) sgx-tool
 
@@ -90,7 +90,7 @@ quote-test: quote-test.o $(SGX_OBJS) $(SSL_OBJS)
 generate-launch: generate-launch.o $(SGX_OBJS) $(SSL_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
 
-bootstrap-test: bootstrap-test.o $(SGX_OBJS) $(SSL_OBJS)
+egate-test: egate-test.o $(SGX_OBJS) $(SSL_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
 
 clean: 

@@ -3,6 +3,7 @@
  * recreate it if the proxy dies and restarts.
  */
 
+#include <fcntl.h>
 #include <getopt.h>
 #include <string.h>
 #include <sgx-kern.h>
@@ -12,12 +13,14 @@
 #include <egate.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 
-#include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+
+#define GDB_DEBUG 0
 
 struct option options[] = {
         {"key"       , required_argument, 0, 'k'},
@@ -93,26 +96,25 @@ int main(int argc, char **argv)
 
 	channels = mmap(NULL, 2*sizeof(echan_t), PROT_READ|PROT_WRITE, MAP_SHARED,
 			fd, 0);
-	pchan[0] = channels;
-	pchan[1] = channels + 1;
-
-        quotetcs = create_elf_enclave_conf(quoteenc, quoteconf, &quotess, 1);
-        if (!quotetcs) {
-                fprintf(stdout, "Unable to create quoting enclave.\n");
-                fflush(stdout);
-                exit(-1);
-        } else {
-                fprintf(stdout, "Created quoting enclave.\n"); fflush(stdout);
-        }
 
 	if (!channels) {
 		perror("mmap");
 		exit(-1);
 	}
+	close(fd);
+
+	pchan[0] = channels;
+	pchan[1] = channels + 1;
+
+        quotetcs = create_elf_enclave_conf(quoteenc, quoteconf, &quotess, GDB_DEBUG);
+        if (!quotetcs) {
+                fprintf(stdout, "Unable to create quoting enclave.\n");
+                fflush(stdout);
+                exit(-1);
+        } 
 
 	egate_proxy_init(&e, quotetcs, quotess, pchan);
 	
-	fprintf(stdout, "Proxy reading commands.\n");
 	/* Now do the while loop that serves the buffer. */
 	while (!done) {
 		ecmd_t c;
@@ -121,13 +123,14 @@ int main(int argc, char **argv)
                 if (ret) break;
                 if (c.t <= ECMD_LAST_SYSTEM) {
                         // Handle predefined cmd
-                        printf("Handling communication from enclave: CMD %d"
-			       " LEN %lu.\n", c.t, c.len);
                         egate_user_cmd(&e, &c, buffer, 2048, &done);
                 } else {
-                        printf("Unhandled user-specific communication from enclave: CMD %d"
-			       " LEN %lu.\n", c.t, c.len);
+                        fprintf(stderr, 
+				"Unhandled user-specific communication "
+				"from enclave: CMD %d LEN %lu.\n", 
+				c.t, c.len);
                 }
 	}
-	fprintf(stdout, "Proxy shutting down.\n");
+	munmap(channels, sizeof(2*sizeof(echan_t)));
+	unlink(argv[1]);
 }
