@@ -3,7 +3,7 @@
 extern void *_end;
 char *heap_base = 0;
 char *heap_top = 0;
-char *heap_limit = &_end + PAGE_SIZE*STACK_PAGE_FRAMES_PER_TCS;
+char *heap_limit = (char *)&_end + PAGE_SIZE*STACK_PAGE_FRAMES_PER_TCS;
 /* This makes assmptions on how our memory is set up when the enclave is 
  * created; we should probably verify the toolchain does this. */ 
 
@@ -14,13 +14,23 @@ static int _malloc_init(void *start, size_t len)
 	return 0;
 }
 
+static int _libsgx_malloc_init(void)
+{
+	
+	char *top;
+	if (heap_base) return 0;
+
+	top = (char *)round_up((unsigned long)&_end, PAGE_SIZE) + STACK_PAGE_FRAMES_PER_TCS*PAGE_SIZE;
+	_malloc_init(top, HEAP_PAGE_FRAMES*PAGE_SIZE);
+	return 0;
+}
+
 void *malloc(size_t len)
 {
 	char *newtop, *val;
 
 	if (heap_base == 0) {
-		char *top = (char *)round_up((unsigned long)&_end, PAGE_SIZE) + STACK_PAGE_FRAMES_PER_TCS*PAGE_SIZE;
-		_malloc_init(top, HEAP_PAGE_FRAMES*PAGE_SIZE);
+		_libsgx_malloc_init();
         }
 
 	if (len <= 0) {

@@ -24,7 +24,6 @@ Current Todo:
   * Create checking code for in/out of enclave
   * Create copy routines
   * Switch existing enclaves over to use new copy routines
---------------- DONE THROUGH HERE ---------------
 * Get more of SSL/TLS running in enclave space - PARTIALLY DONE
   * Polar SSL AES CMAC for launch token generation - DONE
   * Look into switching to libcrypto from boringssl - NO, boring ssl looks a bit of a mess 
@@ -35,7 +34,7 @@ Current Todo:
 * Switch to using stock mbedtls install - DONE
 * Get GDB debugging working - DONE
 * Get an actual quoting enclave running - DONE
-+ Create call in with two shared buffers and command structure for it - IN PROGRESS
+* Create call in with two shared buffers and command structure for it - IN PROGRESS
   * Get basic enclave gate abstraction set - DONE
   * Get a buffer for output from enclaves that can support the equivalent of 
     printf - DONE
@@ -43,12 +42,15 @@ Current Todo:
     the user code proxies for the report - DONE
   * Add QUOTE_REQ/QUOTE_RESP egate events for enclaves to request quotes
     from user code
-  - Finish debugging basic communication channel details, including making some more 
-    test cases that test wrap-around and channel reset - IN PROGRESS
+  * Finish debugging basic communication channel details, including making some more 
+    test cases that test wrap-around and channel reset - DONE
+--------------- DONE THROUGH HERE ---------------
 + Bootstrap code - IN PROGRESS
   * Parse options on startup
   * Create and save launch tokens
   * Switch to running enclave in its own thread - REJECTED as not doable in current qemu
+  * Implement RDRAND in qemu so we can get an ephemeral key - DONE
+  - Debug random number generation in polarssl - IN PROGRESS
   - Switch Makefile to have a bootstrap target and an all target
   - Switch sgx-tool to use launch enclave to create launch tokens - DEFERRED
 + Better runtime support - IN PROGRESS
@@ -57,8 +59,8 @@ Current Todo:
 - Socket/TLS support
   - Create a socket shim/proxy out of the enclave using sendto/recvfrom commands over the 
     shared buffer channel 
-  - An entropy source in enclaves (probably implement RDRAND instruction in
-    qemu using /dev/urandom)
+  - Add a useful entropy source in enclaves (probably implement RDRAND instruction in
+    qemu using /dev/urandom). Can't generate ephemeral keys reasonably without this!
   - SSL/TLS communication primitives from enclaves 
 --------------- LONGER-TERM AFTER HERE ---------------
 - Fix CSSA setup to actually set it to proper values and still sign correctly 

@@ -5230,32 +5230,51 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
             tcg_temp_free(a0);
         }
         break;
-    case 0x1c7: /* cmpxchg8b */
+    case 0x1c7: /* cmpxchg8b, rdrand, rdseed */
         modrm = cpu_ldub_code(env, s->pc++);
         mod = (modrm >> 6) & 3;
-        if ((mod == 3) || ((modrm & 0x38) != 0x8))
-            goto illegal_op;
+	op = (modrm >> 3) & 7;
+        if (mod == 3) { 
+	    /* rdrand or rdseed */
+	    switch (op) {
+            case 6: /* rdrand */
+//                if (!(s->cpuid_ext_features & CPUID_EXT_RDRAND))
+//                   goto illegal_op;
+                ot = mo_64_32(dflag);
+		reg = (modrm & 7) | REX_B(s);
+		gen_helper_rdrand(cpu_T[0], cpu_env, tcg_const_i32(ot));
+        	gen_op_mov_reg_v(ot, reg, cpu_T[0]);
+                set_cc_op(s, CC_OP_EFLAGS);
+	        break;
+	    case 7: /* rdseed */
+	    default:
+                goto illegal_op;
+	    }
+	} else {
+	    /* cmpxchg8b */
+	    if (op != 0x1)
+                goto illegal_op;
 #ifdef TARGET_X86_64
-        if (dflag == MO_64) {
-            if (!(s->cpuid_ext_features & CPUID_EXT_CX16))
-                goto illegal_op;
-            gen_jmp_im(pc_start - s->cs_base);
-            gen_update_cc_op(s);
-            gen_lea_modrm(env, s, modrm);
-            gen_helper_cmpxchg16b(cpu_env, cpu_A0);
-        } else
+            if (dflag == MO_64) {
+                if (!(s->cpuid_ext_features & CPUID_EXT_CX16))
+                    goto illegal_op;
+                gen_jmp_im(pc_start - s->cs_base);
+                gen_update_cc_op(s);
+                gen_lea_modrm(env, s, modrm);
+                gen_helper_cmpxchg16b(cpu_env, cpu_A0);
+            } else
 #endif
-        {
-            if (!(s->cpuid_features & CPUID_CX8))
-                goto illegal_op;
-            gen_jmp_im(pc_start - s->cs_base);
-            gen_update_cc_op(s);
-            gen_lea_modrm(env, s, modrm);
-            gen_helper_cmpxchg8b(cpu_env, cpu_A0);
-        }
-        set_cc_op(s, CC_OP_EFLAGS);
-        break;
-
+            {
+                if (!(s->cpuid_features & CPUID_CX8))
+                    goto illegal_op;
+                gen_jmp_im(pc_start - s->cs_base);
+                gen_update_cc_op(s);
+                gen_lea_modrm(env, s, modrm);
+                gen_helper_cmpxchg8b(cpu_env, cpu_A0);
+            }
+            set_cc_op(s, CC_OP_EFLAGS);
+	}
+	break;
         /**************************/
         /* push/pop */
     case 0x50 ... 0x57: /* push */

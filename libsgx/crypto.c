@@ -19,3 +19,39 @@ void rsa_sign(rsa_context *ctx, unsigned char *input, size_t bytes,
                        POLARSSL_MD_SHA1, HASH_SIZE, hash, sig);
 	return;
 }
+
+#define RDRAND_RETRY_LOOPS 10
+/* Instead of arch_get_random_long() when alternatives haven't run. */
+static inline int rdrand_long(unsigned long *v)
+{
+        int ok;
+        asm volatile("1: .byte 0x48,0x0f,0xc7,0xf0\n\t"
+                     "jc 2f\n\t"
+                     "decl %0\n\t"
+                     "jnz 1b\n\t"
+                     "2:"
+                     : "=r" (ok), "=a" (*v)
+                     : "0" (RDRAND_RETRY_LOOPS));
+        return ok;
+}
+
+/* Consider switching to RDSEED when we know we have it... */
+static int rdrand_data_source(void *data, unsigned char *output, size_t len, size_t *olen)
+{
+	uint64_t *pout = (uint64_t *)output;
+	int i;
+	for (i = 0; i < len/8; i++)
+	{
+		if (rdrand_long(pout + i)) {
+			break;
+		}
+	}
+	*olen = (i - 1) * 8;
+	return 0;
+}
+
+void enclave_entropy_init( entropy_context *ctx )
+{
+	entropy_init(ctx);
+	entropy_add_source(ctx, rdrand_data_source, NULL, 8);
+}

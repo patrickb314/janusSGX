@@ -218,6 +218,9 @@ DEF_HELPER_3(rclq, tl, env, tl, tl)
 DEF_HELPER_3(rcrq, tl, env, tl, tl)
 #endif
 
+/* RDRAND Helper Define */
+DEF_HELPER_2(rdrand, tl, env, i32)
+
 /* SGX Helper Define*/
 DEF_HELPER_1(sgx_encls, void, env)
 DEF_HELPER_2(sgx_enclu, void, env, i64)
