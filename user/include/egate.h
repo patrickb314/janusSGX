@@ -3,6 +3,7 @@
 
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <netdb.h>
 
 typedef struct ecmd ecmd_t;
 typedef struct echan echan_t;
@@ -24,6 +25,9 @@ enum ecmd_type {ECMD_NONE = 0,
 		ECMD_SOCK_LISTEN_RESP,
 		ECMD_SOCK_READ_RESP, 
 		ECMD_SOCK_WRITE_RESP, 
+		ECMD_SOCK_SETOPT_RESP, 
+		ECMD_SOCK_FCNTL_RESP, 
+		ECMD_GETADDRINFO_RESP,
 		ECMD_CONS_READ_RESP,
 		/* From enclave to user */
 		ECMD_REPORT_RESP, 
@@ -37,6 +41,9 @@ enum ecmd_type {ECMD_NONE = 0,
 		ECMD_SOCK_LISTEN_REQ,
 		ECMD_SOCK_READ_REQ, 
 		ECMD_SOCK_WRITE_REQ, 
+		ECMD_SOCK_SETOPT_REQ, 
+		ECMD_SOCK_FCNTL_REQ, 
+		ECMD_GETADDRINFO_REQ,
 		ECMD_CONS_READ_REQ,
 		ECMD_CONS_WRITE, 
 		ECMD_DONE};
@@ -108,6 +115,10 @@ int eg_set_default_gate(egate_t *g);
     int eg_##name(egate_t *g, t1, t2);
 #define DECLARE_UNIX_STUB3(name, t1, t2, t3) \
     int eg_##name(egate_t *g, t1, t2, t3);
+#define DECLARE_UNIX_STUB4(name, t1, t2, t3, t4) \
+    int eg_##name(egate_t *g, t1, t2, t3, t4);
+#define DECLARE_UNIX_STUB5(name, t1, t2, t3, t4, t5) \
+    int eg_##name(egate_t *g, t1, t2, t3, t4, t5);
 
 DECLARE_UNIX_STUB1(close, int)
 DECLARE_UNIX_STUB3(socket, int, int, int)
@@ -118,5 +129,6 @@ DECLARE_UNIX_STUB2(listen, int, int)
 DECLARE_UNIX_STUB3(read, int, void *, size_t)
 DECLARE_UNIX_STUB2(shutdown, int, int)
 DECLARE_UNIX_STUB3(write, int, const void *, size_t)
-
+DECLARE_UNIX_STUB4(getaddrinfo, const char *, const char *, const struct addrinfo *, struct addrinfo **)
+DECLARE_UNIX_STUB5(setsockopt, int, int, int, const void *, socklen_t)
 #endif /* _EGATE_H_ */

@@ -3,6 +3,7 @@
 #include <egate.h>
 
 #include <errno.h>
+#include <fcntl.h>
 #include <netdb.h>
 #include <unistd.h>
 
@@ -142,42 +143,26 @@ int egate_user_enqueue(egate_t *g, ecmd_t *r, void *buf, size_t len)
 int egate_user_sock_open(egate_t *g, ecmd_t *r, void *buf, size_t len)
 {
 	ecmd_t resp;
-	struct addrinfo *ai;
-	struct sockaddr *sa;
-	int fd = -1, err = 0, ret = -1;
-	/* COmmand contains a struct addrinfo and a struct sockaddr_XXX with
-	 * length in the struct addrinfo */
-	if (len < sizeof(struct addrinfo)) {
-		err = EINVAL;
+	int fd = -1;
+	int family, type, protocol;
+
+	if (len != 3*sizeof(int)) {
+		errno = EINVAL;
 		goto done;
 	}
+	family = ((int *)buf)[0];
+	type = ((int *)buf)[1];
+	protocol = ((int *)buf)[2];
 
-	ai = buf;
-	if (len < (sizeof(struct addrinfo) + ai->ai_addrlen)) {
-		err = EINVAL;
-		goto done;
-	}
-
-	sa = (struct sockaddr *)((char *)buf + sizeof(struct addrinfo));
-	fd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
-	if (fd < 0) {
-		err = errno;
-		goto done;
-	}
-	
-	ret = connect(fd, sa, ai->ai_addrlen);
-	if (ret) {
-		err = errno;
-	}
-
+	fd = socket(family, type, protocol);
 done:
 	/* Write the response back to the caller */
 	resp.t = ECMD_SOCK_OPEN_RESP;
 	resp.len = 0;
-	if (!err) {
-		resp.val = fd;
+	if (fd < 0) {
+		resp.val = -errno;
 	} else {
-		resp.val = -err;
+		resp.val = fd;
 	}
 	egate_user_enqueue(g, &resp, NULL, 0);
 	
@@ -191,7 +176,7 @@ int egate_user_sock_close(egate_t *g, ecmd_t *r, void *buf, size_t len)
 
 	ret = close(r->val);
 	/* Write the response back to the caller */
-	resp.t = ECMD_SOCK_CLOSE_RESP;;
+	resp.t = ECMD_SOCK_CLOSE_RESP;
 	resp.len = 0;
 	if (ret == 0) {
 		resp.val = 0;
@@ -203,34 +188,331 @@ int egate_user_sock_close(egate_t *g, ecmd_t *r, void *buf, size_t len)
 	return 0;
 }
 
+int egate_user_sock_shutdown(egate_t *g, ecmd_t *r, void *buf, size_t len)
+{
+	int sock = r->val;
+	int how = 0;
+	int ret = 0;
+	ecmd_t resp;
+	if (r->len != sizeof(int)) {
+		ret = -1; 
+		errno = EINVAL;
+		goto done;
+	}
+	how = *(int *)buf;
+	ret = shutdown(sock, how);
+done:
+	/* Write the response back to the caller */
+	resp.t = ECMD_SOCK_SHUTDOWN_RESP;
+	resp.len = 0;
+	if (ret == 0) {
+		resp.val = 0;
+	} else {
+		resp.val = -errno;
+	}
+	egate_user_enqueue(g, &resp, NULL, 0);
+	return 0;
+}
+
 int egate_user_sock_bind(egate_t *g, ecmd_t *r, void *buf, size_t len)
 {
+	int sock = r->val;
+	int llen = r->len;
+	struct sockaddr *sa = buf;
+	ecmd_t resp;
+
+	int ret = bind(sock, sa, llen);
+
+	resp.t = ECMD_SOCK_BIND_RESP;
+	resp.len = 0;
+	if (ret == 0) {
+		resp.val = 0;
+	} else {
+		resp.val = -errno;
+	}
+	egate_user_enqueue(g, &resp, NULL, 0);
+	
+	return 0;
+}
+
+int egate_user_sock_accept(egate_t *g, ecmd_t *r, void *buf, size_t len)
+{
+	int sock = r->val;
+	char lbuf[ECHAN_REQ_LIMIT];
+	socklen_t llen = ECHAN_REQ_LIMIT;
+	ecmd_t resp;
+
+	int ret = accept(sock, (struct sockaddr *)lbuf, &llen);
+	
+	resp.t = ECMD_SOCK_ACCEPT_RESP;
+	resp.len = llen;
+	if (ret >= 0) {
+		resp.val = 0;
+	} else {
+		resp.val = -errno;
+	}
+	egate_user_enqueue(g, &resp, lbuf, llen);
+
 	return 0;
 }
 
 int egate_user_sock_connect(egate_t *g, ecmd_t *r, void *buf, size_t len)
 {
 	return 0;
-}
+	int sock = r->val;
+	int llen = r->len;
+	struct sockaddr *sa = buf;
+	ecmd_t resp;
 
-int egate_user_sock_accept(egate_t *g, ecmd_t *r, void *buf, size_t len)
-{
+	int ret = connect(sock, sa, llen);
+	resp.t = ECMD_SOCK_CONNECT_RESP;
+	resp.len = 0;
+	if (ret == 0) {
+		resp.val = 0;
+	} else {
+		resp.val = -errno;
+	}
+	egate_user_enqueue(g, &resp, NULL, 0);
+	
 	return 0;
 }
 
-int egate_user_sock_send(egate_t *g, ecmd_t *r, void *buf, size_t len)
+int egate_user_sock_listen(egate_t *g, ecmd_t *r, void *buf, size_t len)
 {
+	int sock = r->val;
+	int backlog = 0;
+	int ret = 0;
+	ecmd_t resp;
+
+	if (r->len != sizeof(int)) {
+		ret = -1; 
+		errno = EINVAL;
+		goto done;
+	}
+	backlog = *(int *)buf;
+	ret = listen(sock, backlog);
+done:
+	/* Write the response back to the caller */
+	resp.t = ECMD_SOCK_LISTEN_RESP;
+	resp.len = 0;
+	if (ret == 0) {
+		resp.val = 0;
+	} else {
+		resp.val = -errno;
+	}
+	egate_user_enqueue(g, &resp, NULL, 0);
 	return 0;
 }
 
-int egate_user_sock_recv(egate_t *g, ecmd_t *r, void *buf, size_t len)
+#ifndef MIN
+#define MIN(a, b) (a) > (b) ? (a) : (b)
+#endif
+
+int egate_user_sock_read(egate_t *g, ecmd_t *r, void *buf, size_t len)
 {
+	int sock = r->val;
+	int ret = 0;
+	char lbuf[ECHAN_REQ_LIMIT];
+	size_t readlen;
+	ecmd_t resp;
+
+	if (r->len != sizeof(size_t)) {
+		ret = -1; 
+		errno = EINVAL;
+		goto done;
+	}
+	readlen = *(size_t *)buf;
+	readlen = MIN(readlen, ECHAN_REQ_LIMIT);
+	ret = read(sock, lbuf, readlen);
+done:
+	/* Write the response back to the caller */
+	resp.t = ECMD_SOCK_READ_RESP;
+	resp.len = 0;
+	if (ret >= 0) {
+		resp.val = ret;
+		resp.len = ret;
+	} else {
+		resp.val = -errno;
+		resp.len = 0;
+	}
+	egate_user_enqueue(g, &resp, lbuf, resp.len);
+	return 0;
+}
+
+int egate_user_sock_write(egate_t *g, ecmd_t *r, void *buf, size_t len)
+{
+	int sock = r->val;
+	int ret = 0;
+	ecmd_t resp;
+
+	ret = write(sock, buf, len);
+
+	/* Write the response back to the caller */
+	resp.t = ECMD_SOCK_WRITE_RESP;
+	resp.len = 0;
+	if (ret >= 0) {
+		resp.val = ret;
+	} else {
+		resp.val = -errno;
+	}
+	egate_user_enqueue(g, &resp, NULL, 0);
+	return 0;
+}
+
+int egate_user_sock_setopt(egate_t *g, ecmd_t *r, void *buf, size_t len)
+{
+	int sock = r->val;
+	int level = 0;
+	int optname = 0;
+	char *opt;
+	socklen_t optlen = 0;
+	int ret = 0;
+	ecmd_t resp;
+
+	if (r->len < sizeof(level) + sizeof(optname)) {
+		ret = -1; 
+		errno = EINVAL;
+		goto done;
+	}
+
+	level = *(int *)buf;
+	optname = *(int *)((char *)buf + sizeof(level));
+	optlen = len - sizeof(level) - sizeof(optname);
+	opt = (char *)buf + sizeof(level) + sizeof(optlen);
+
+	ret = setsockopt(sock, level, optname, opt, optlen);
+done:
+	/* Write the response back to the caller */
+	resp.t = ECMD_SOCK_SETOPT_RESP;
+	resp.len = 0;
+	if (ret == 0) {
+		resp.val = 0;
+	} else {
+		resp.val = -errno;
+	}
+	egate_user_enqueue(g, &resp, NULL, 0);
+	return 0;
+}
+
+int egate_user_sock_fcntl(egate_t *g, ecmd_t *r, void *buf, size_t len)
+{
+	int sock = r->val;
+	int cmd = 0;
+	int optarg = 0;
+	int ret = 0;
+	ecmd_t resp;
+
+	if (r->len != sizeof(cmd) + sizeof(optarg)) {
+		ret = -1; 
+		errno = EINVAL;
+		goto done;
+	}
+
+	cmd = *(int *)buf;
+	optarg = *(int *)((char *)buf + sizeof(cmd));
+
+	ret = fcntl(sock, cmd, optarg);
+done:
+	/* Write the response back to the caller */
+	resp.t = ECMD_SOCK_FCNTL_RESP;
+	resp.len = 0;
+	if (ret == 0) {
+		resp.val = 0;
+	} else {
+		resp.val = -errno;
+	}
+	egate_user_enqueue(g, &resp, NULL, 0);
+	return 0;
+}
+
+int pack_addrinfo(struct addrinfo *ai, char *lbuf, int *len)
+{
+	char *p = lbuf;
+	while (ai) {
+		struct addrinfo *ai_pack;
+		struct sockaddr *sa_pack;
+		char *cname_pack;
+		int cname_len;
+
+		memcpy(p, ai, sizeof(struct addrinfo));
+		ai_pack = (struct addrinfo *)p;
+		p += sizeof(struct addrinfo);
+
+		memcpy(p, ai->ai_addr, ai->ai_addrlen);
+		sa_pack = (struct sockaddr *)p;
+		p += ai->ai_addrlen;
+
+		cname_len = strlen(ai->ai_canonname) + 1;
+		memcpy(p, ai->ai_canonname, cname_len);
+		cname_pack = (char *)p;
+		p += cname_len;
+
+		ai_pack->ai_addr = (struct sockaddr *)(size_t)((char *)sa_pack - (char *)ai_pack);
+		ai_pack->ai_canonname = (char *)(size_t)((char *)cname_pack - (char *)ai_pack);
+		if (ai->ai_next) {
+			ai_pack->ai_next = (struct addrinfo *)(size_t)(p - (char *)ai_pack);
+		} else {
+			ai_pack->ai_next = 0;
+		}
+		ai = ai->ai_next;
+	}
+	*len = p - lbuf;
+	return 0;
+}
+
+int egate_user_getaddrinfo(egate_t *g, ecmd_t *r, void *buf, size_t len)
+{
+	int nl = 0, sl = 0, rl = 0;
+	struct addrinfo *hint; 
+	char *p, *node, *service;
+	struct addrinfo *res = NULL;
+	char lbuf[ECHAN_REQ_LIMIT];
+	int ret = -1;
+	ecmd_t resp;
+
+	if (r->len < sizeof(int) + sizeof(int) + sizeof(struct addrinfo)) {
+		ret = -1; 
+		errno = EINVAL;
+		goto done;
+	}
+	p = buf;
+	nl = *(int *)p;
+	p += sizeof(int);
+	sl = *(int *)p;
+	p += sizeof(int);
+	node = p;
+	p += nl;
+	service = p;
+	p += sl;
+	hint = (struct addrinfo *)p;
+
+	ret = getaddrinfo(node, service, hint, &res);
+	rl = ECHAN_REQ_LIMIT;
+	if (ret || pack_addrinfo(res, lbuf, &rl)) {
+		ret = -1;
+		errno = EINVAL;
+		goto done;
+	}
+
+done:
+	if (res) freeaddrinfo(res);
+	res = NULL;
+	resp.t = ECMD_GETADDRINFO_RESP;
+	if (ret) {
+		resp.val = -errno;
+		resp.len = 0;
+	} else {
+		resp.val = 0;
+		resp.len = rl;
+	}
+	egate_user_enqueue(g, &resp, lbuf, rl);
+	
 	return 0;
 }
 
 int egate_user_request_report(egate_t *g, targetinfo_t *t, char buf[64], report_t *r)
 {
-	char lbuf[2048];
+	char lbuf[ECHAN_REQ_LIMIT];
 	ecmd_t c;
 	c.t = ECMD_REPORT_REQ;
 	c.len = sizeof(targetinfo_t) + 64;
@@ -239,7 +521,7 @@ int egate_user_request_report(egate_t *g, targetinfo_t *t, char buf[64], report_
 	egate_user_enqueue(g, &c, lbuf, sizeof(targetinfo_t) + 64);
 
 	/* Now we should dequeue a REPORT_RESP */
-	egate_user_poll(g, &c, lbuf, 2048);
+	egate_user_poll(g, &c, lbuf, ECHAN_REQ_LIMIT);
 	if (c.t != ECMD_REPORT_RESP) {
 		return -1;
 	}
@@ -268,7 +550,6 @@ int egate_user_quote(egate_t *g, ecmd_t *r, void *buf, size_t len)
 	if (r->len != 64) return -1;
 
 	/* The user has requested a quote. The nonce is provided. */
-	fprintf(stdout, "Quote requested, asking for report.\n");
 	memset(&t, 0, sizeof(targetinfo_t));
         memcpy(&t.measurement, &g->quotesig->enclaveHash, 32);
         t.attributes = g->quotesig->attributes;
@@ -276,12 +557,9 @@ int egate_user_quote(egate_t *g, ecmd_t *r, void *buf, size_t len)
 	ret = egate_user_request_report(g, &t, buf, &rpt);
 	if (ret) return ret;
 
-	fprintf(stdout, "Received quote, generating quote.\n");
 	/* So we have a report. Get it signed. */
 	request_quote(g->quotetcs, exception_handler, &rpt, &qt);
 
-	hexdump(stdout, &qt, sizeof(quote_t));
-	fprintf(stdout, "Sending back generated quote.\n");
 	/* Now send the resulting request back */
 	c.t = ECMD_QUOTE_RESP;
 	c.len = sizeof(quote_t);
@@ -299,6 +577,7 @@ int egate_user_cons_write(egate_t *g, ecmd_t *r, void *buf, size_t len)
 int egate_user_reset(egate_t *g, ecmd_t *r, void *buf, size_t len)
 {
 	printf("Reset received from enclave.\n");
+	return 0;
 }
 
 typedef int (*req_handler_t)(egate_t *, ecmd_t *, void *buf, size_t len);
@@ -308,11 +587,16 @@ req_handler_t dispatch[ECMD_NUM] = {
 	[ECMD_CONS_WRITE] = egate_user_cons_write,
 	[ECMD_SOCK_OPEN_REQ] = egate_user_sock_open,
 	[ECMD_SOCK_CLOSE_REQ] = egate_user_sock_close,
+	[ECMD_SOCK_SHUTDOWN_REQ] = egate_user_sock_shutdown,
 	[ECMD_SOCK_BIND_REQ] = egate_user_sock_bind,
 	[ECMD_SOCK_CONNECT_REQ] = egate_user_sock_connect,
 	[ECMD_SOCK_ACCEPT_REQ] = egate_user_sock_accept,
-	[ECMD_SOCK_SEND_REQ] = egate_user_sock_send,
-	[ECMD_SOCK_RECV_REQ] = egate_user_sock_recv,
+	[ECMD_SOCK_LISTEN_REQ] = egate_user_sock_listen,
+	[ECMD_SOCK_READ_REQ] = egate_user_sock_read,
+	[ECMD_SOCK_WRITE_REQ] = egate_user_sock_write,
+	[ECMD_SOCK_WRITE_REQ] = egate_user_sock_setopt,
+	[ECMD_SOCK_WRITE_REQ] = egate_user_sock_fcntl,
+	[ECMD_GETADDRINFO_REQ] = egate_user_getaddrinfo,
 	[ECMD_QUOTE_REQ] = egate_user_quote,
 };
 
