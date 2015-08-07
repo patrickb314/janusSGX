@@ -134,7 +134,9 @@ int egate_enclave_dequeue(egate_t *g, ecmd_t *r, void *buf, size_t len)
          * so get the data as well and then increment start by the full
          * amount */
         start += sizeof(ecmd_t);
-        ret = echan_copytoenclave(c, start, buf, r->len);
+	if (r->len) {
+        	ret = echan_copytoenclave(c, start, buf, r->len);
+	}
         c->start = roundup2(start + r->len, 8) % ECHAN_BUF_SIZE;
 
         return ret;
@@ -262,6 +264,18 @@ int eg_set_default_gate(egate_t *g)
 	return 0;
 }
 
+int printf(const char *fmt, ...) {
+	va_list args;
+	char buf[256];
+	int len;
+
+	va_start(args, fmt);
+	len = vsnprintf(buf, 256, fmt, args);
+	va_end(args);
+	if (!len) return 0;
+	return eg_console_write(default_gate, buf, len + 1);
+}
+
 #define DEFAULT_GATE_CHECK { if (!default_gate) return -1; /*SET ERRNO*/ }
 #define DEFINE_UNIX_STUB1(name, t1, v1) \
     int name(t1 v1) \
@@ -318,7 +332,8 @@ DEFINE_UNIX_STUB3(socket, int, domain, int, type, int, protocol)
 	egate_enclave_enqueue(g, &c, lbuf, 12);
 	ret = egate_enclave_poll(g, &c, NULL, 0);
 	if (ret || (c.t != ECMD_SOCK_OPEN_RESP) || c.len != 0) {
-		egate_enclave_error(g, "Invalid socket response received.");
+		egate_enclave_reset(g);
+		eg_printf(g, "Invalid socket response %d/%d/%d received.\n", ret, c.t, c.len);
 		errno = EINVAL;
 		return -1;
 	}
@@ -514,13 +529,13 @@ DEFINE_UNIX_STUB3(write, int, sockfd, const void *, buf, size_t, len)
 	len = MIN(len, ECHAN_REQ_LIMIT);
 
 	memset(&c, 0, sizeof(ecmd_t));
-	c.t = ECMD_SOCK_READ_REQ;
+	c.t = ECMD_SOCK_WRITE_REQ;
 	c.val = sockfd;
 	c.len = len;
 	egate_enclave_enqueue(g, &c, (void *)buf, len);
 	ret = egate_enclave_poll(g, &c, NULL, 0);
 	if (ret || (c.t != ECMD_SOCK_WRITE_RESP)) {
-		egate_enclave_error(g, "Invalid write response received.");
+		egate_enclave_error(g, "Invalid write response received.\n");
 		return -1;
 	}
 	if (c.val < 0) {
@@ -549,7 +564,7 @@ static int unpack_addrinfo(char *lbuf, size_t len, struct addrinfo **res)
 
 	memcpy(buf, lbuf, len);
 	p = buf;
-	while (p && p < (char *)buf + len) {
+	while (p && (p >= (char *)buf) &&  (p < (char *)buf + len)) {
 		struct addrinfo *ai, *next;
 		struct sockaddr *sa;
 		char *cname;
@@ -557,28 +572,37 @@ static int unpack_addrinfo(char *lbuf, size_t len, struct addrinfo **res)
 		/* Get basic pointers */
 		ai = (struct addrinfo *)p;
 		sa = (struct sockaddr *)(p + (size_t)ai->ai_addr);
-		cname = (char *)(p + (size_t)ai->ai_canonname);
-		next = (struct addrinfo *)(p + (size_t)ai->ai_next);
+		if (ai->ai_canonname) {
+			cname = (char *)(p + (size_t)ai->ai_canonname);
+		} else {
+			cname = NULL;
+		}
+		if (ai->ai_next) {
+			next = (struct addrinfo *)(p + (size_t)ai->ai_next);
+		} else {
+			next = NULL;
+		}
 
 		/* Now sanity check them */
 		if (((char *)ai < (char *)buf) 
 		    || ((char *)ai > (char *)buf + len)) goto fail;
 		if (((char *)sa < (char *)buf) 
 		    || ((char *)sa > (char *)buf + len)) goto fail;
-		if ((cname < (char *)buf) || (cname > (char *)buf + len)) goto fail;
-		if ((char *)sa + ai->ai_addrlen != ai->ai_canonname) goto fail;
-
-		
+		if (cname) {
+			if ((cname < (char *)buf) || (cname > (char *)buf + len)) goto fail;
+			if ((char *)sa + ai->ai_addrlen != ai->ai_canonname) goto fail;
+			if (next) {
+				if (((char *)next < (char *)buf) 
+			    	    || ((char *)next > (char *)buf + len)) goto fail;
+				if (*((char *)next - 1) != 0) goto fail;
+			} else {
+				if (*((char *)buf + len - 1) != 0) goto fail;
+			} 
+		}
 		ai->ai_addr = sa;
 		ai->ai_canonname = cname;
 		ai->ai_next = next;
-		if (next) {
-			if (((char *)next < (char *)buf) 
-			    || ((char *)next > (char *)buf + len)) goto fail;
-			if (*((char *)next - 1) != 0) goto fail;
-		} else {
-			if (*((char *)buf + len - 1) != 0) goto fail;
-		} 
+		p = (char *)next;
 	}
 
 	*res = buf;
@@ -616,10 +640,10 @@ DEFINE_UNIX_STUB4(getaddrinfo, const char *, node, const char *, service,
 	p = lbuf;
 	*(int *)p = nl;
 	p += sizeof(int);
-	memcpy(p, node, nl);
-	p += nl;
 	*(int *)p = sl;
 	p += sizeof(int);
+	memcpy(p, node, nl);
+	p += nl;
 	memcpy(p, service, sl);
 	p += sl;
 	memcpy(p, hints, sizeof(struct addrinfo));

@@ -146,7 +146,7 @@ int egate_user_sock_open(egate_t *g, ecmd_t *r, void *buf, size_t len)
 	int fd = -1;
 	int family, type, protocol;
 
-	if (len != 3*sizeof(int)) {
+	if (r->len != 3*sizeof(int)) {
 		errno = EINVAL;
 		goto done;
 	}
@@ -258,7 +258,6 @@ int egate_user_sock_accept(egate_t *g, ecmd_t *r, void *buf, size_t len)
 
 int egate_user_sock_connect(egate_t *g, ecmd_t *r, void *buf, size_t len)
 {
-	return 0;
 	int sock = r->val;
 	int llen = r->len;
 	struct sockaddr *sa = buf;
@@ -345,7 +344,7 @@ int egate_user_sock_write(egate_t *g, ecmd_t *r, void *buf, size_t len)
 	int ret = 0;
 	ecmd_t resp;
 
-	ret = write(sock, buf, len);
+	ret = write(sock, buf, r->len);
 
 	/* Write the response back to the caller */
 	resp.t = ECMD_SOCK_WRITE_RESP;
@@ -377,7 +376,7 @@ int egate_user_sock_setopt(egate_t *g, ecmd_t *r, void *buf, size_t len)
 
 	level = *(int *)buf;
 	optname = *(int *)((char *)buf + sizeof(level));
-	optlen = len - sizeof(level) - sizeof(optname);
+	optlen = r->len - sizeof(level) - sizeof(optname);
 	opt = (char *)buf + sizeof(level) + sizeof(optlen);
 
 	ret = setsockopt(sock, level, optname, opt, optlen);
@@ -441,14 +440,26 @@ int pack_addrinfo(struct addrinfo *ai, char *lbuf, int *len)
 		memcpy(p, ai->ai_addr, ai->ai_addrlen);
 		sa_pack = (struct sockaddr *)p;
 		p += ai->ai_addrlen;
-
-		cname_len = strlen(ai->ai_canonname) + 1;
-		memcpy(p, ai->ai_canonname, cname_len);
+	
+		if (ai->ai_canonname) {
+			cname_len = strlen(ai->ai_canonname) + 1;
+		} else {
+			cname_len = 0;
+		}
+	
+		if (cname_len) {
+		    memcpy(p, ai->ai_canonname, cname_len);
+		}
 		cname_pack = (char *)p;
 		p += cname_len;
 
 		ai_pack->ai_addr = (struct sockaddr *)(size_t)((char *)sa_pack - (char *)ai_pack);
-		ai_pack->ai_canonname = (char *)(size_t)((char *)cname_pack - (char *)ai_pack);
+		if (cname_len) {
+			ai_pack->ai_canonname = (char *)(size_t)((char *)cname_pack - (char *)ai_pack);
+		} else {
+			ai_pack->ai_canonname = 0;
+		}
+
 		if (ai->ai_next) {
 			ai_pack->ai_next = (struct addrinfo *)(size_t)(p - (char *)ai_pack);
 		} else {
@@ -594,8 +605,8 @@ req_handler_t dispatch[ECMD_NUM] = {
 	[ECMD_SOCK_LISTEN_REQ] = egate_user_sock_listen,
 	[ECMD_SOCK_READ_REQ] = egate_user_sock_read,
 	[ECMD_SOCK_WRITE_REQ] = egate_user_sock_write,
-	[ECMD_SOCK_WRITE_REQ] = egate_user_sock_setopt,
-	[ECMD_SOCK_WRITE_REQ] = egate_user_sock_fcntl,
+	[ECMD_SOCK_SETOPT_REQ] = egate_user_sock_setopt,
+	[ECMD_SOCK_FCNTL_REQ] = egate_user_sock_fcntl,
 	[ECMD_GETADDRINFO_REQ] = egate_user_getaddrinfo,
 	[ECMD_QUOTE_REQ] = egate_user_quote,
 };

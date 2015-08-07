@@ -14,18 +14,18 @@
 #include <sys/socket.h>
 
 #include <egate.h>
-#define GDB_DEBUG 0
+#define GDB_DEBUG 1
 
 ENCCALL1(enclave_main, egate_t *)
 
 void usage(char *progname)
 {
-	fprintf(stderr, "usage: %s test.sgx test.conf\n", progname);
+	fprintf(stderr, "usage: %s test.sgx [test.conf]\n", progname);
 }
 
 int main(int argc, char **argv)
 {
-	char *testenc, *testconf, tmpname[64];
+	char *testenc, *testconf = NULL, tmpname[64];
 	tcs_t *testtcs;
 	egate_t e;
 	echan_t *pchan[2];
@@ -34,13 +34,15 @@ int main(int argc, char **argv)
 	int zero;
 
 	/* Parse options */ 
-	if (argc != 3) {
+	if (argc < 2) {
 		usage(argv[0]);
 		exit(-1);
 	}
 	/* After options are done, get the test enclave and configuration file */
 	testenc = argv[1];
-	testconf = argv[2];
+	if (argc == 3) {
+		testconf = argv[2];
+	}
 
     	sys_sgx_init(NULL);
 
