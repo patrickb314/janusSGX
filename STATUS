@@ -57,11 +57,11 @@ Current Todo:
   * Change the starting heap size to something decent
   - Get a real bootmem allocator in place 
 - Socket/TLS support
-  - Create a socket shim/proxy out of the enclave using sendto/recvfrom commands over the 
-    shared buffer channel 
-  - Add a useful entropy source in enclaves (probably implement RDRAND instruction in
+  * Add a useful entropy source in enclaves (probably implement RDRAND instruction in
     qemu using /dev/urandom). Can't generate ephemeral keys reasonably without this!
-  - SSL/TLS communication primitives from enclaves 
+  + Create a socket shim/proxy out of the enclave using sendto/recvfrom commands over the 
+    shared buffer channel - IN PROGRESS< key parts working
+  - Test/debug SSL/TLS communication primitives from enclaves 
 --------------- LONGER-TERM AFTER HERE ---------------
 - Fix CSSA setup to actually set it to proper values and still sign correctly 
   in the emulator. Once this is done, we can turn on the exception handler 
@@ -76,6 +76,20 @@ Current Todo:
   exchange information, and can be proved safe.
 - Create bootstrap code that includes the rest of the enclave code as a binary blob and
   dynamically loads it at runtime a la kernel loadable modules. Will break debugging support.
+--------------- SPECULATIVE IDEAS AFTER HERE -----------
+- Intel says they don't care about sidechannel attacks, but to place reasonable limits
+  on the lifetime of secrets, we need to have some sense of how fast those sidechannel
+  attacks can actually happen. With the OS able to transparently interrupt and resume the 
+  enclave easily (e.g. using page table protections), there's a lot of information to gather.
+  Is it reasonable top assume that hte code itself is hidden, and how much protection does
+  this actually offer from sidechannel attacks?
+- Making RPC and marshalling systems to automate the construction of libraries between the
+  enclave and user that are also provably safe seems like a good idea (e.g. to automatically
+  generate a lot of the boilerplate of the UNIX stubs). There has to have been something 
+  done here already. How to safely optimize these transfers in a way that leverages shared
+  memory is also interesting; some level of hashing/signing is probably necessary. Right now,
+  there's a lot of copying going on, and it would be cool if you could avoid that.
+
 ***
 
 Longer-term issues:
