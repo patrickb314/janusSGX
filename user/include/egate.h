@@ -105,7 +105,7 @@ int egate_enclave_cmd(egate_t *, ecmd_t *, void *buf, size_t len, int *done);
 int eg_printf(egate_t *, char *, ...);
 void __attribute__((noreturn)) eg_exit(egate_t *, int);
 
-int eg_request_quote(egate_t *, char nonce[64], quote_t *);
+int eg_request_quote(egate_t *, unsigned char nonce[64], quote_t *);
 int eg_set_default_gate(egate_t *g);
 
 /* UNIX stubs */

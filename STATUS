@@ -62,6 +62,16 @@ Current Todo:
   + Create a socket shim/proxy out of the enclave using sendto/recvfrom commands over the 
     shared buffer channel - IN PROGRESS< key parts working
   - Test/debug SSL/TLS communication primitives from enclaves 
+- Test cases
+  - Finish a simple test case that illustrates the exact remote attestation process described
+    in the intel paper
+  - Create a simple test case that can talk to an openssl client
+  - Create a simple test case illustrating the use of the various types of 
+    keys
+- Documentation
+  - Document the Intel provisinging/sealing keys and how they're actually meant to be
+    used usefully.
+  - More general writeup ofthe challenges in programming here.
 --------------- LONGER-TERM AFTER HERE ---------------
 - Fix CSSA setup to actually set it to proper values and still sign correctly 
   in the emulator. Once this is done, we can turn on the exception handler 

@@ -217,7 +217,7 @@ int egate_enclave_error(egate_t *g, char *msg)
 	return 0;
 }
 
-int eg_request_quote(egate_t *g, char nonce[64], quote_t *q)
+int eg_request_quote(egate_t *g, unsigned char nonce[64], quote_t *q)
 {
 	ecmd_t c;
 	int ret;
