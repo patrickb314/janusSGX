@@ -525,7 +525,6 @@ int egate_user_request_report(egate_t *g, targetinfo_t *t, char buf[64], report_
 {
 	char lbuf[ECHAN_REQ_LIMIT];
 	ecmd_t c;
-	c.t = ECMD_REPORT_REQ;
 	c.len = sizeof(targetinfo_t) + 64;
 	memcpy(lbuf, t, sizeof(targetinfo_t));
         memcpy(lbuf+sizeof(targetinfo_t), buf, 64);
@@ -533,9 +532,6 @@ int egate_user_request_report(egate_t *g, targetinfo_t *t, char buf[64], report_
 
 	/* Now we should dequeue a REPORT_RESP */
 	egate_user_poll(g, &c, lbuf, ECHAN_REQ_LIMIT);
-	if (c.t != ECMD_REPORT_RESP) {
-		return -1;
-	}
 	if (c.len != sizeof(report_t)) {
 		return -1;
 	}
@@ -545,14 +541,13 @@ int egate_user_request_report(egate_t *g, targetinfo_t *t, char buf[64], report_
 	return 0;
 }
 
-ENCCALL2(request_quote, report_t *, quote_t *)
+ENCCALL2(request_quote, report_t *, rsa_sig_t *)
 
 /* Here we need to call the quoting enclave */
-int egate_user_quote(egate_t *g, ecmd_t *r, void *buf, size_t len)
+int egate_user_quote_target(egate_t *g, ecmd_t *r, void *buf, size_t len)
 {
 	targetinfo_t t;
 	report_t rpt;
-	quote_t qt;
 	ecmd_t c;
 	int ret;
 
@@ -565,16 +560,32 @@ int egate_user_quote(egate_t *g, ecmd_t *r, void *buf, size_t len)
         memcpy(&t.measurement, &g->quotesig->enclaveHash, 32);
         t.attributes = g->quotesig->attributes;
         t.miscselect = g->quotesig->miscselect;
-	ret = egate_user_request_report(g, &t, buf, &rpt);
-	if (ret) return ret;
 
-	/* So we have a report. Get it signed. */
-	request_quote(g->quotetcs, exception_handler, &rpt, &qt);
+	c.len = sizeof(targetinfo_t);
+	c.val = 0;
+	egate_user_enqueue(g, &c, &t, sizeof(targetinfo_t));
+	return 0;
+}
+
+int egate_user_quote(egate_t *g, ecmd_t *r, void *buf, size_t len)
+{
+	targetinfo_t t;
+	report_t *rpt;
+	rsa_sig_t sig;
+	ecmd_t resp;
+	int ret;
+	if (r->len != sizeof(report_t)) {
+		
+	}
+	rpt = buf;
+	/* So we have a report. Get a signature for it. */
+	request_quote(g->quotetcs, exception_handler, rpt, &sig);
 
 	/* Now send the resulting request back */
-	c.t = ECMD_QUOTE_RESP;
-	c.len = sizeof(quote_t);
-	egate_user_enqueue(g, &c, &qt, sizeof(quote_t));
+	resp.t = ECMD_QUOTE_RESP;
+	resp.len = sizeof(rsa_sig_t);
+	resp.val = 0;
+	egate_user_enqueue(g, &resp, &sig, sizeof(rsa_sig_t));
 
 	return 0;
 }

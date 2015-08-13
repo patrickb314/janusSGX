@@ -51,8 +51,8 @@ static int rdrand_data_source(void *data, unsigned char *output, size_t len, siz
 	return 0;
 }
 
-void enclave_entropy_init( entropy_context *ctx )
+int enclave_entropy_init( entropy_context *ctx )
 {
 	entropy_init(ctx);
-	entropy_add_source(ctx, rdrand_data_source, NULL, 8);
+	return entropy_add_source(ctx, rdrand_data_source, NULL, 8);
 }

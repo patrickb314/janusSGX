@@ -14,7 +14,6 @@ enum echan_type {ECHAN_TO_ENCLAVE = 0, ECHAN_TO_USER};
 enum ecmd_type {ECMD_NONE = 0, 
 		ECMD_RESET,
 		/* From user to enclave */
-		ECMD_REPORT_REQ, 
 		ECMD_QUOTE_RESP, 
 		ECMD_SOCK_OPEN_RESP, 
 		ECMD_SOCK_CLOSE_RESP,
@@ -30,7 +29,6 @@ enum ecmd_type {ECMD_NONE = 0,
 		ECMD_GETADDRINFO_RESP,
 		ECMD_CONS_READ_RESP,
 		/* From enclave to user */
-		ECMD_REPORT_RESP, 
 		ECMD_QUOTE_REQ, 
 		ECMD_SOCK_OPEN_REQ, 
 		ECMD_SOCK_CLOSE_REQ,
@@ -105,7 +103,7 @@ int egate_enclave_cmd(egate_t *, ecmd_t *, void *buf, size_t len, int *done);
 int eg_printf(egate_t *, char *, ...);
 void __attribute__((noreturn)) eg_exit(egate_t *, int);
 
-int eg_request_quote(egate_t *, unsigned char nonce[64], quote_t *);
+int eg_request_quote(egate_t *, unsigned char nonce[64], report_t *, rsa_sig_t *);
 int eg_set_default_gate(egate_t *g);
 
 /* UNIX stubs */

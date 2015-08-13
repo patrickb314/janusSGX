@@ -81,52 +81,49 @@ char *quoting_key = "-----BEGIN RSA PRIVATE KEY-----\n"
 "59G87VFwHz+YjbG0+ab3055a5u13JsBjyLDfyIo6GduPRFYHBXEh\n"
 "-----END RSA PRIVATE KEY-----\n";
 
-void sign_quote(quote_t *q)
+void sign_quote(report_t *r, rsa_sig_t *s)
 {
 	pk_context ctx;
 	pk_init(&ctx);
 
 	pk_parse_key(&ctx, (unsigned char *)quoting_key, 
 		     strlen(quoting_key), NULL, 0);
-	rsa_sign(pk_rsa(ctx), (unsigned char *)&q->report, 384,
-                 (unsigned char *)q->sig);
+	rsa_sign(pk_rsa(ctx), (unsigned char *)r, 384,
+                 (unsigned char *)s);
 	pk_free(&ctx);
 	return;
 }
 
-void enclave_main(report_t *report, quote_t *quote)
+void enclave_main(report_t *report, rsa_sig_t *sig)
 {
-	report_t *r; 
-	quote_t *q;
+	report_t *r = NULL; 
+	rsa_sig_t *s = NULL;
 
 	r = malloc(sizeof(report_t));
-	q = malloc(sizeof(quote_t));
+	s = malloc(sizeof(rsa_sig_t));
 	
-	memset(quote->sig, 0x1, sizeof(rsa_sig_t));
+	memset(s, 0x00, sizeof(rsa_sig_t));
 
 	/* First, copy what we're working with to enclave memory
 	 * to avoid complications with the host racing with us 
 	 * to try and get odd results */
 	copyin(r, report, sizeof(report_t));
 
-	/* Check that the report is actually locally. */
+	/* Check that the report is actually local. */
 	if (verify_report(report) != 0) {
 		goto fail;
 	}
 
-	/* Copy the report to the quote */
-	memcpy(&q->report, r, sizeof(report_t));
-
 	/* Now sign the quote */
-	sign_quote(q);
+	sign_quote(r, s);
 
 	/* Copy the signed quote out */
-	copyout(quote, q, sizeof(quote_t));
+	copyout(sig, s, sizeof(rsa_sig_t));
 out:
-	free(q);
-	free(r);
+	if (s) free(s);
+	if (r) free(r);
 	return;
 fail: 
-	memset(&quote, -1, sizeof(quote_t));
+	memset(sig, -1, sizeof(rsa_sig_t));
 	goto out;
 }

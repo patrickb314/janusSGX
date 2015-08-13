@@ -19,8 +19,17 @@
 
 char *provisioner_hostname = "localhost";
 int provisioner_port = 11298;
-/* XXX PGB Put a key in, dummy. */
-char *provisioner_key = "";
+char *provisioner_key = "-----BEGIN PUBLIC KEY-----\n"
+"MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEAz+eH4VRDgoUozMJSpDm/\n"
+"mmSqKm/WkISDKeLnpbMyaEZc1xH+EcxurQkjOBnw4NoNHQU/gEeNJ2x3BNsB5080\n"
+"oR/f9wxUb7sr8osKvCMxWvQSor5Y8qoK4/QGBZv0c5MMcplqpcvl1V4CiPL3gl+q\n"
+"2RxxTUKtY3gF5+JIGIXkSczzc70aDe8vVQmV/VTd+zT/v/tFkSawCuFh6eXmrkUp\n"
+"/WlqNvhPONrwkfCV2fimtx3+7cldFS+vqdZGtpPnist1XYHnHnT/XjoEQPXLdGNj\n"
+"f0AgeGig4nrpB8qpx0TBkFu6MTcAg5gbsNCLdSssM3OpgXrSP/mDQ8nPhNblS2Pr\n"
+"9Pr28wWw3MHdzeKK3Bp4074+a7zUw1IbyDb+IZpa4coeNzlEbiYQwXgvJFBw3VRK\n"
+"HOPgn+PNIyZdQ3Obzd1fa1OZgi7fActwc1xX4L85k/plKxG9+gFhzCVbFcPaRX4g\n"
+"hKNOSDZLq/X7McobajTz8DGcgFiNzJAVoJfORN3mRGC5AgMBAAE=\n"
+"-----END PUBLIC KEY-----\n";
 
 int setup_connection(egate_t *g, int *pfd, 
 		     entropy_context *entropy, ctr_drbg_context *ctr_drbg,
@@ -33,8 +42,13 @@ int setup_connection(egate_t *g, int *pfd,
 	memset(&pk, 0, sizeof(pk));
 	/* Set up random number generation */
 	eg_printf(g, "ENCLAVE: Seeding the random number generator.\n");
-	enclave_entropy_init(entropy);
-	ret = ctr_drbg_init( ctr_drbg, entropy_func, &entropy,
+	ret = enclave_entropy_init(entropy);
+	if (ret != 0) {
+        	eg_printf(g, "ENCLAVE FAIL (%d): Could not initialize entropy source.\n", ret);
+        	goto exit;
+    	}
+
+	ret = ctr_drbg_init( ctr_drbg, entropy_func, entropy,
                              (const unsigned char *) pers,
                              strlen( pers ) );
 	if (ret != 0) {
@@ -45,10 +59,10 @@ int setup_connection(egate_t *g, int *pfd,
 	eg_printf(g, "ENCLAVE: Importing the provisioning server's public key.\n");
 
 	pk_init(&pk);
-        ret = pk_parse_key(&pk, (unsigned char *)provisioner_key,
-                           strlen(provisioner_key), NULL, 0);
+        ret = pk_parse_public_key(&pk, (unsigned char *)provisioner_key,
+                           strlen(provisioner_key));
 	if (ret != 0 ) {
-        	eg_printf(g, "ENCLAVE FAIL (%d): Could not parse RSA key RNG.\n", ret);
+        	eg_printf(g, "ENCLAVE FAIL (%d): Could not parse RSA key.\n", ret);
         	goto exit;
 	}
 	rsa_copy(rsa, pk_rsa(pk));
@@ -81,10 +95,12 @@ int exchange_dhm_quote(egate_t *g, int fd, ctr_drbg_context *ctr_drbg,
 	unsigned char buf[2048];
 	unsigned char hash[64]; // hash only uses 20!
 	unsigned char tmp[16];
-	int manifest_len = 0;
+	int manifest_len = 0, quote_len = 0;
 	int ret = 0;
-	quote_t q;
-	memset(&q, 0, sizeof(q));
+	report_t r;
+	rsa_sig_t s;
+
+	memset(&s, 0, sizeof(s));
 	memset(hash, 0, 64);
 	dhm_init( dhm );
 
@@ -159,7 +175,7 @@ int exchange_dhm_quote(egate_t *g, int fd, ctr_drbg_context *ctr_drbg,
 	 * as contents */
     	sha1( buf, manifest_len, hash );
 
-	ret = eg_request_quote(g, hash, &q);
+	ret = eg_request_quote(g, hash, &r, &s);
 	if (!ret) {
         	eg_printf(g,  "ENCLAVE FAIL(%d): failed to get quote.\n", ret );
         	goto exit;
@@ -171,29 +187,36 @@ int exchange_dhm_quote(egate_t *g, int fd, ctr_drbg_context *ctr_drbg,
 	ret = net_send(&fd, tmp, 2);
 	if (ret != 2) {
 		ret = -1;
-        	eg_printf(g, "ENCLAVE FAIL: net_recv returned %d unexpectedly.\n", ret);
+        	eg_printf(g, "ENCLAVE FAIL: net_send returned %d unexpectedly.\n", ret);
 		goto exit;
 	}
 
 	ret = net_send(&fd, buf, manifest_len);
 	if (ret != manifest_len) {
 		ret = -1;
-        	eg_printf(g, "ENCLAVE FAIL: net_recv returned %d unexpectedly.\n", ret);
+        	eg_printf(g, "ENCLAVE FAIL: net_send returned %d unexpectedly.\n", ret);
 		goto exit;
 	}
 
-	tmp[0] = (unsigned char) ((sizeof(quote_t) >> 8) & 0xff);
-	tmp[1] = (unsigned char) (sizeof(quote_t) & 0xff);
+	quote_len = sizeof(report_t) + sizeof(rsa_sig_t);
+	tmp[0] = (unsigned char) ((quote_len >> 8) & 0xff);
+	tmp[1] = (unsigned char) (quote_len & 0xff);
 	ret = net_send(&fd, tmp, 2);
 	if (ret != 2) {
 		ret = -1;
         	eg_printf(g, "ENCLAVE FAIL: net_recv returned %d unexpectedly.\n", ret);
 		goto exit;
 	}
-	ret = net_send(&fd, (unsigned char *)&q, sizeof(quote_t));
-	if (ret != sizeof(quote_t)) {
+	ret = net_send(&fd, (unsigned char *)&r, sizeof(report_t));
+	if (ret != sizeof(report_t)) {
 		ret = -1;
-        	eg_printf(g, "ENCLAVE FAIL: net_recv returned %d unexpectedly.\n", ret);
+        	eg_printf(g, "ENCLAVE FAIL: net_send returned %d unexpectedly.\n", ret);
+		goto exit;
+	}
+	ret = net_send(&fd, (unsigned char *)&r, sizeof(rsa_sig_t));
+	if (ret != sizeof(rsa_sig_t)) {
+		ret = -1;
+        	eg_printf(g, "ENCLAVE FAIL: net_send returned %d unexpectedly.\n", ret);
 		goto exit;
 	}
 
