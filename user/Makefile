@@ -10,8 +10,8 @@ OPENSGX = ../opensgx
 LDLIBS=-lelf
 
 LIBSGXDIR=../libsgx
-SGX_LDLIBS=-L. -L$(LIBSGXDIR) -lsgx -lpolarssl -lsgx
-SGX_LIBS=$(LIBSGXDIR)/libpolarssl.a $(LIBSGXDIR)/libsgx.a $(LIBSGXDIR)/sgx-entry.o 
+SGX_LDLIBS=-L. -L$(LIBSGXDIR) -lsgx -lpolarssl-enc -lsgx
+SGX_LIBS=$(LIBSGXDIR)/libpolarssl-enc.a $(LIBSGXDIR)/libsgx.a $(LIBSGXDIR)/sgx-entry.o 
 
 BASE_CFLAGS := -g -Iinclude -Wall -pedantic -Wno-unused-function -std=gnu11 
 CFLAGS := $(BASE_CFLAGS)
@@ -28,6 +28,7 @@ HDRS := $(wildcard include/sgx*.h)
 BINS := $(patsubst %.c,%.sgx,$(wildcard test/*.c)) \
         $(patsubst %.c,%.sgx,$(wildcard demo/*.c)) \
 	launch-test sgx-test generate-launch egate-test \
+	bootstrap-server \
 	egate-proxy
 ALL  := $(BINS) $(BOOTSTRAP_ENCS) sgx-tool
 

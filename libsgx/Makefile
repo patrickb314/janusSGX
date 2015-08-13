@@ -3,18 +3,18 @@ BASE_CFLAGS = -g -Iinclude -I../user/include -Wall -pedantic -Wno-unused-functio
 ENC_CFLAGS = -fno-stack-protector -static -fPIC -fvisibility=hidden
 CFLAGS = $(BASE_CFLAGS) $(ENC_CFLAGS)
 ASFLAGS = -D__ASSEMBLY__ -Iinclude -Wall -fno-stack-protector -static -fPIC
-all: libsgx.a libpolarssl.a sgx-entry.o
+all: libsgx.a libpolarssl-enc.a sgx-entry.o
 TOP=$(PWD)
 libsgx.a: $(LIBSGX_OBJS)
 	$(AR) rs $@ $^
 
 clean: 
 	make -C mbedtls-1.3.11 clean
-	rm -f libpolarssl.a $(LIBSGX_OBJS)
+	rm -f libpolarssl-enc.a $(LIBSGX_OBJS)
 
-libpolarssl.a: mbedtls-config-libsgx.h
+libpolarssl-enc.a: mbedtls-config-libsgx.h
 	CFLAGS="-g $(ENC_CFLAGS) -I$(TOP) -DPOLARSSL_CONFIG_FILE='<mbedtls-config-libsgx.h>'" make -C mbedtls-1.3.11 SHARED=1 lib
-	cp mbedtls-1.3.11/library/libpolarssl.a .
 	rm -rf include/polarssl
 	cp -r mbedtls-1.3.11/include/polarssl include
-	cp mbedtls-config-libsgx.h mbedtls-1.3.11/include/polarssl/config.h
+	cp mbedtls-config-libsgx.h include/polarssl/config.h
+	cp mbedtls-1.3.11/library/libpolarssl.a ./libpolarssl-enc.a

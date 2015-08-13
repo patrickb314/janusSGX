@@ -176,6 +176,7 @@ int eg_printf(egate_t *g, char *fmt, ...)
 	int len;
 
 	va_start(args, fmt);
+	memset(buf, 0, 256);
 	len = vsnprintf(buf, 256, fmt, args);
 	va_end(args);
 	if (!len) return 0;
@@ -217,40 +218,36 @@ int egate_enclave_error(egate_t *g, char *msg)
 	return 0;
 }
 
-int eg_request_quote(egate_t *g, unsigned char nonce[64], quote_t *q)
+int eg_request_quote(egate_t *g, unsigned char nonce[64], report_t *r, rsa_sig_t *s)
 {
 	ecmd_t c;
 	int ret;
 	char lbuf[ECHAN_REQ_LIMIT];
-	report_t r;
+	targetinfo_t t;
 
-	/* Request a quote */
+	/* Construct a targetinfo and a report */
+	if (!g->quotesig) return -1;
+
+	memset(&t, 0, sizeof(targetinfo_t));
+        memcpy(&t.measurement, &g->quotesig->enclaveHash, 32);
+        t.attributes = g->quotesig->attributes;
+        t.miscselect = g->quotesig->miscselect;
+	sgx_report(&t, nonce, r);
+
+	/* Request a signature for that report */
 	memset(&c, 0, sizeof(ecmd_t));
 	c.t = ECMD_QUOTE_REQ;
-	c.len = 64;
-	egate_enclave_enqueue(g, &c, nonce, 64);
-
-	ret = egate_enclave_poll(g, &c, lbuf, sizeof(targetinfo_t) + 64);
-	if (ret || c.t != ECMD_REPORT_REQ 
-	    || c.len != (sizeof(targetinfo_t) + 64)
-	    || memcmp(nonce, lbuf + sizeof(targetinfo_t), 64)) {
-		egate_enclave_error(g, "Invalid report request received.");
-		return -1;
-	}
-	sgx_report(lbuf, lbuf+sizeof(targetinfo_t), &r);
-
-	c.t = ECMD_REPORT_RESP;
 	c.len = sizeof(report_t);
-	egate_enclave_enqueue(g, &c, &r, sizeof(report_t));
+	egate_enclave_enqueue(g, &c, r, sizeof(report_t));
 
-	ret = egate_enclave_poll(g, &c, lbuf, sizeof(quote_t));
+	/* And wait for the signature back */
+	ret = egate_enclave_poll(g, &c, lbuf, sizeof(rsa_sig_t));
 	if (ret || c.t != ECMD_QUOTE_RESP 
-	    || c.len != sizeof(quote_t)
-	    || memcmp( ((quote_t *)lbuf)->report.reportData, nonce, 64)) {
+	    || c.len != sizeof(rsa_sig_t)) {
 		egate_enclave_error(g, "Invalid quote reponse received.");
 		return -1;
 	}
-	memcpy(q, lbuf, sizeof(quote_t));
+	memcpy(s, lbuf, sizeof(rsa_sig_t));
 	return 0;
 }
 
