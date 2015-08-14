@@ -543,7 +543,7 @@ int egate_user_request_report(egate_t *g, targetinfo_t *t, char buf[64], report_
 
 ENCCALL2(request_quote, report_t *, rsa_sig_t *)
 
-/* Here we need to call the quoting enclave */
+/* Return the ID of the quoting enclave back to the enclave */
 int egate_user_quote_target(egate_t *g, ecmd_t *r, void *buf, size_t len)
 {
 	targetinfo_t t;
@@ -551,16 +551,17 @@ int egate_user_quote_target(egate_t *g, ecmd_t *r, void *buf, size_t len)
 	ecmd_t c;
 	int ret;
 
+	/* These should turn into RESETs. */
 	if (!g->quotetcs) return -1;
 	if (!g->quotesig) return -1;
-	if (r->len != 64) return -1;
+	if (r->len != 0) return -1;
 
-	/* The user has requested a quote. The nonce is provided. */
 	memset(&t, 0, sizeof(targetinfo_t));
         memcpy(&t.measurement, &g->quotesig->enclaveHash, 32);
         t.attributes = g->quotesig->attributes;
         t.miscselect = g->quotesig->miscselect;
 
+	c.t = ECMD_QUOTE_TARGET_RESP;
 	c.len = sizeof(targetinfo_t);
 	c.val = 0;
 	egate_user_enqueue(g, &c, &t, sizeof(targetinfo_t));
@@ -619,6 +620,7 @@ req_handler_t dispatch[ECMD_NUM] = {
 	[ECMD_SOCK_SETOPT_REQ] = egate_user_sock_setopt,
 	[ECMD_SOCK_FCNTL_REQ] = egate_user_sock_fcntl,
 	[ECMD_GETADDRINFO_REQ] = egate_user_getaddrinfo,
+	[ECMD_QUOTE_TARGET_REQ] = egate_user_quote_target,
 	[ECMD_QUOTE_REQ] = egate_user_quote,
 };
 

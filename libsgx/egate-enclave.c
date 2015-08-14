@@ -225,16 +225,24 @@ int eg_request_quote(egate_t *g, unsigned char nonce[64], report_t *r, rsa_sig_t
 	char lbuf[ECHAN_REQ_LIMIT];
 	targetinfo_t t;
 
-	/* Construct a targetinfo and a report */
-	if (!g->quotesig) return -1;
+	/* Two part process to get a quote - first we get a targetinfo for
+	 * the quoting enclave and generate a report, then we get that report
+	 * signed by the quoting enclave. */
 
-	memset(&t, 0, sizeof(targetinfo_t));
-        memcpy(&t.measurement, &g->quotesig->enclaveHash, 32);
-        t.attributes = g->quotesig->attributes;
-        t.miscselect = g->quotesig->miscselect;
+	/* Targetinfo/report acquisition */
+	memset(&c, 0, sizeof(ecmd_t));
+	c.t = ECMD_QUOTE_TARGET_REQ;
+
+	/* And wait for it to come back */
+	ret = egate_enclave_poll(g, &c, &t, sizeof(targetinfo_t));
+	if (ret || c.t != ECMD_QUOTE_TARGET_RESP 
+	    || c.len != sizeof(targetinfo_t)) {
+		egate_enclave_error(g, "Invalid quote targetinfo reponse received.");
+		return -1;
+	}
 	sgx_report(&t, nonce, r);
 
-	/* Request a signature for that report */
+	/* Now get the report signed. */
 	memset(&c, 0, sizeof(ecmd_t));
 	c.t = ECMD_QUOTE_REQ;
 	c.len = sizeof(report_t);

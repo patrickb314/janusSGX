@@ -1,4 +1,6 @@
-/* Reference : https://polarssl.org/discussions/generic/authentication-token */
+/* Reference : https://polarssl.org/discussions/generic/authentication-token 
+ * XXX PGB THIS MAY NOT BE A PROPERLY COPYRIGHTED FILE IF DERIVED FROM
+ *     SAMBA CODE AS INDICATED AT THE END OF THE THREAD */
 
 #include "polarssl/aes_cmac128.h"
 

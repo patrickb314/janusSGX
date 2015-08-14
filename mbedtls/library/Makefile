@@ -42,7 +42,7 @@ ifdef WINDOWS_BUILD
 DLEXT=dll
 endif
 
-OBJS=	aes.o		aesni.o		arc4.o			\
+OBJS=	aes.o		aesni.o		aes_cmac128.o	arc4.o			\
 		asn1parse.o								\
 		asn1write.o base64.o	bignum.o		\
 		blowfish.o	camellia.o	ccm.o			\

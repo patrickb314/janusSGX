@@ -259,5 +259,3 @@ exit:
 
     return( ret );
 }
-          POLARSSL_NET_C && POLARSSL_RSA_C && POLARSSL_SHA256_C &&
-          POLARSSL_FS_IO && POLARSSL_CTR_DRBG_C */

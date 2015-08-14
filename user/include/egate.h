@@ -14,6 +14,7 @@ enum echan_type {ECHAN_TO_ENCLAVE = 0, ECHAN_TO_USER};
 enum ecmd_type {ECMD_NONE = 0, 
 		ECMD_RESET,
 		/* From user to enclave */
+		ECMD_QUOTE_TARGET_RESP, 
 		ECMD_QUOTE_RESP, 
 		ECMD_SOCK_OPEN_RESP, 
 		ECMD_SOCK_CLOSE_RESP,
@@ -29,6 +30,7 @@ enum ecmd_type {ECMD_NONE = 0,
 		ECMD_GETADDRINFO_RESP,
 		ECMD_CONS_READ_RESP,
 		/* From enclave to user */
+		ECMD_QUOTE_TARGET_REQ, 
 		ECMD_QUOTE_REQ, 
 		ECMD_SOCK_OPEN_REQ, 
 		ECMD_SOCK_CLOSE_REQ,

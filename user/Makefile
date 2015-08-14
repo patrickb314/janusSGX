@@ -1,23 +1,28 @@
+TOP=$(PWD)
+BASE_CFLAGS := -g -Iinclude -Wall -pedantic -Wno-unused-function -std=gnu11 
+
+# Host code/tool build information
+CFLAGS := $(BASE_CFLAGS)
 SGX_RUNTIME := sgx-runtime.o sgx-test-runtime.o
 SGX_OBJS := sgx-user.o sgx-elf.o sgx-kern.o sgx-kern-epc.o sgx-utils.o sgx-signature.o egate-user.o
-SSL_OBJS := polarssl/rsa.o polarssl/entropy.o polarssl/ctr_drbg.o \
-	polarssl/bignum.o polarssl/md.o polarssl/oid.o polarssl/asn1parse.o polarssl/sha1.o \
-	polarssl/sha512.o polarssl/aes.o polarssl/entropy_poll.o polarssl/aesni.o \
-	polarssl/timing.o polarssl/md_wrap.o polarssl/sha256.o polarssl/md5.o \
-	polarssl/ripemd160.o polarssl/net.o polarssl/aes_cmac128.o
-SGX_START=$(LIBSGXDIR)/sgx-entry.o
+SSL_OBJS := libpolarssl-user.a
+#polarssl/rsa.o polarssl/entropy.o polarssl/ctr_drbg.o \
+#	polarssl/bignum.o polarssl/md.o polarssl/oid.o polarssl/asn1parse.o polarssl/sha1.o \
+#	polarssl/sha512.o polarssl/aes.o polarssl/entropy_poll.o polarssl/aesni.o \
+#	polarssl/timing.o polarssl/md_wrap.o polarssl/sha256.o polarssl/md5.o \
+#	polarssl/ripemd160.o polarssl/net.o polarssl/aes_cmac128.o
 OPENSGX = ../opensgx
-LDLIBS=-lelf
+LDLIBS=-L. -lpolarssl-user -lelf
 
+# Enclave code build information
 LIBSGXDIR=../libsgx
-SGX_LDLIBS=-L. -L$(LIBSGXDIR) -lsgx -lpolarssl-enc -lsgx
+ENC_CFLAGS=$(BASE_CFLAGS) -I$(LIBSGXDIR)/include -fno-stack-protector -static -fPIC -fvisibility=hidden
+ENC_ASFLAGS=-D__ASSEMBLY__ -Iinclude -Wall -fno-stack-protector -static -fPIC -g
+ENC_LDFLAGS=-static -nostdlib -Wl,-T,sgx.lds
+SGX_START=$(LIBSGXDIR)/sgx-entry.o
+SGX_LDLIBS=-L$(LIBSGXDIR) -lsgx -lpolarssl-enc -lsgx
 SGX_LIBS=$(LIBSGXDIR)/libpolarssl-enc.a $(LIBSGXDIR)/libsgx.a $(LIBSGXDIR)/sgx-entry.o 
 
-BASE_CFLAGS := -g -Iinclude -Wall -pedantic -Wno-unused-function -std=gnu11 
-CFLAGS := $(BASE_CFLAGS)
-ENC_CFLAGS := $(BASE_CFLAGS) -I$(LIBSGXDIR)/include -fno-stack-protector -static -fPIC -fvisibility=hidden
-ENC_ASFLAGS := -D__ASSEMBLY__ -Iinclude -Wall -fno-stack-protector -static -fPIC -g
-ENC_LDFLAGS = -static -nostdlib -Wl,-T,sgx.lds
 
 BOOTSTRAP_ENCS = bootstrap/launch-enclave.sgx bootstrap/launch-enclave.conf \
 		 bootstrap/quoting-enclave.sgx bootstrap/quoting-enclave.conf \
@@ -34,11 +39,13 @@ ALL  := $(BINS) $(BOOTSTRAP_ENCS) sgx-tool
 
 all: $(ALL)
 
-libsgx.a: $(LIBSGX_OBJS)
-	$(AR) rs $@ $^
-
-polarssl/%.o: polarssl/%.c
-	$(CC) -c  $(CFLAGS) -o $@ $<
+libpolarssl-user.a: mbedtls-config-sgxusr.h
+	CFLAGS="-g $(CFLAGS) -I$(TOP) -DPOLARSSL_CONFIG_FILE='<mbedtls-config-sgxusr.h>'" make -C ../mbedtls SHARED=1 clean lib
+	rm -rf include/polarssl
+	mkdir -p include
+	cp -r ../mbedtls/include/polarssl include/
+	cp mbedtls-config-sgxusr.h include/polarssl/config.h
+	cp ../mbedtls/library/libpolarssl.a ./libpolarssl-user.a
 
 %.o: %.c $(HDRS)
 	$(CC) -c $(CFLAGS) -o $@ $<
