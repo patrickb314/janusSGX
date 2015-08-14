@@ -31,6 +31,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <sgx.h>
+
 #define SERVER_PORT 11298
 #define PLAINTEXT "==Hello there!=="
 
@@ -46,8 +48,9 @@ int main( void )
     unsigned char buf[2048];
     unsigned char hash[20];
     unsigned char buf2[2];
+    unsigned char manifest[2048];
     const char *pers = "dh_server";
-
+    report_t r;
     entropy_context entropy;
     ctr_drbg_context ctr_drbg;
     rsa_context rsa;
@@ -111,7 +114,7 @@ int main( void )
     printf( "\n  . Reading DH parameters from bootstrap/dh_prime.txt" );
     fflush( stdout );
 
-    if( ( f = fopen( "conf/dh_prime.txt", "rb" ) ) == NULL )
+    if( ( f = fopen( "bootstrap/dh_prime.txt", "rb" ) ) == NULL )
     {
         ret = 1;
         printf( " failed\n  ! Could not open bootstrap/dh_prime.txt !\n\n" );
@@ -159,6 +162,7 @@ int main( void )
         printf( " failed\n  ! dhm_make_params returned %d\n\n", ret );
         goto exit;
     }
+    memcpy(manifest, buf, n); // stash away our info to use in hashing what we get back
 
     /*
      * 5. Sign the parameters and send them
@@ -193,9 +197,7 @@ int main( void )
     fflush( stdout );
 
     memset( buf, 0, sizeof( buf ) );
-    n = dhm.len;
-
-    if( ( ret = net_recv( &client_fd, buf, n ) ) != (int) n )
+    if( ( ret = net_recv( &client_fd, buf, dhm.len ) ) != (int) dhm.len )
     {
         printf( " failed\n  ! net_recv returned %d\n\n", ret );
         goto exit;
@@ -206,6 +208,31 @@ int main( void )
         printf( " failed\n  ! dhm_read_public returned %d\n\n", ret );
         goto exit;
     }
+
+    memcpy(manifest + n, buf, dhm.len); // Complete constructing the manifest
+
+    printf( "\n  . Receiving the client's enclave report value" );
+    if( ( ret = net_recv( &client_fd, (unsigned char *)&r, sizeof(report_t) ) ) != (int) sizeof(report_t) )
+    {
+        printf( " failed\n  ! net_recv returned %d\n\n", ret );
+        goto exit;
+    }
+
+    printf( "\n  . Receiving the quoting enclave signature of the report NOT IMPLEMENTED" );
+    if( ( ret = net_recv( &client_fd, buf2, 2 ) ) != 2 )
+    {
+        printf( " failed\n  ! net_recv returned %d\n\n", ret );
+        goto exit;
+    }
+
+    buflen = (buf2[0] << 8) + buf2[1];
+    if( ( ret = net_recv( &client_fd, buf, buflen ) ) != buflen )
+    {
+        printf( " failed\n  ! net_recv returned %d\n\n", ret );
+        goto exit;
+    }
+
+    printf( "\n  . Verifying the report hash and quote signature NOT IMPLEMENTED\n" );
 
     /*
      * 7. Derive the shared secret: K = Ys ^ Xc mod P

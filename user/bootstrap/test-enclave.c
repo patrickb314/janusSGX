@@ -95,7 +95,7 @@ int exchange_dhm_quote(egate_t *g, int fd, ctr_drbg_context *ctr_drbg,
 	unsigned char buf[2048];
 	unsigned char hash[64]; // hash only uses 20!
 	unsigned char tmp[16];
-	int manifest_len = 0, quote_len = 0;
+	int manifest_len = 0;
 	int ret = 0;
 	report_t r;
 	rsa_sig_t s;
@@ -163,7 +163,7 @@ int exchange_dhm_quote(egate_t *g, int fd, ctr_drbg_context *ctr_drbg,
 	eg_printf(g, "ENCLAVE: Creating DHM public key\n");
 	/* Now create our own diffie helman parameters into the buf as well, wiping
 	 * out the old key sent by the server */ 
-	ret = dhm_make_public( dhm, (int)dhm->len, buf + manifest_len - dhm->len, dhm->len,
+	ret = dhm_make_public( dhm, (int)dhm->len, buf + buflen, dhm->len,
 			       ctr_drbg_random, ctr_drbg);
 	if (!ret) {
         	eg_printf(g,  "ENCLAVE FAIL(%d): dhm_make_public failed.\n", ret );
@@ -181,36 +181,33 @@ int exchange_dhm_quote(egate_t *g, int fd, ctr_drbg_context *ctr_drbg,
         	goto exit;
 	}
 
-	eg_printf(g, "ENCLAVE: Sending manifest and quote back to server.\n");
-	tmp[0] = (unsigned char) ((manifest_len >> 8) & 0xff);
-	tmp[1] = (unsigned char) (manifest_len  & 0xff );
-	ret = net_send(&fd, tmp, 2);
-	if (ret != 2) {
+	/* Note - we hash both the incoming and outgoing diffie hellman public information
+	 * in the enclave, (which proved liveness to the remote), but only send back our
+	 * info. The receiver has to hold on to their info anyway to check the hash, so 
+	 * why send it? */
+	eg_printf(g, "ENCLAVE: Sending our DH info quote back to server.\n");
+	ret = net_send(&fd, buf + buflen, dhm->len);
+	if (ret != dhm->len) {
 		ret = -1;
         	eg_printf(g, "ENCLAVE FAIL: net_send returned %d unexpectedly.\n", ret);
 		goto exit;
 	}
 
-	ret = net_send(&fd, buf, manifest_len);
-	if (ret != manifest_len) {
-		ret = -1;
-        	eg_printf(g, "ENCLAVE FAIL: net_send returned %d unexpectedly.\n", ret);
-		goto exit;
-	}
-
-	quote_len = sizeof(report_t) + sizeof(rsa_sig_t);
-	tmp[0] = (unsigned char) ((quote_len >> 8) & 0xff);
-	tmp[1] = (unsigned char) (quote_len & 0xff);
-	ret = net_send(&fd, tmp, 2);
-	if (ret != 2) {
-		ret = -1;
-        	eg_printf(g, "ENCLAVE FAIL: net_recv returned %d unexpectedly.\n", ret);
-		goto exit;
-	}
+	eg_printf(g, "ENCLAVE: Sending report back to server.\n");
 	ret = net_send(&fd, (unsigned char *)&r, sizeof(report_t));
 	if (ret != sizeof(report_t)) {
 		ret = -1;
         	eg_printf(g, "ENCLAVE FAIL: net_send returned %d unexpectedly.\n", ret);
+		goto exit;
+	}
+
+	eg_printf(g, "ENCLAVE: Sending signature of report back to server.\n");
+	tmp[0] = (unsigned char) ((sizeof(rsa_sig_t) >> 8) & 0xff);
+	tmp[1] = (unsigned char) (sizeof(rsa_sig_t) & 0xff);
+	ret = net_send(&fd, tmp, 2);
+	if (ret != 2) {
+		ret = -1;
+        	eg_printf(g, "ENCLAVE FAIL: net_recv returned %d unexpectedly.\n", ret);
 		goto exit;
 	}
 	ret = net_send(&fd, (unsigned char *)&r, sizeof(rsa_sig_t));
