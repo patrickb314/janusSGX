@@ -13,7 +13,7 @@
 #include <polarssl/dhm.h>
 #include <polarssl/pk.h>
 #include <polarssl/rsa.h>
-#include <polarssl/sha1.h>
+#include <polarssl/sha256.h>
 #include <polarssl/entropy.h>
 #include <polarssl/ctr_drbg.h>
 
@@ -66,6 +66,7 @@ int setup_connection(egate_t *g, int *pfd,
         	goto exit;
 	}
 	rsa_copy(rsa, pk_rsa(pk));
+	rsa_set_padding( rsa, RSA_PKCS_V15, POLARSSL_MD_SHA256 );
 
 	eg_printf(g, "ENCLAVE: Connecting to provisioning server %s:%d.\n", 
 		  provisioner_hostname, provisioner_port);
@@ -93,9 +94,9 @@ int exchange_dhm_quote(egate_t *g, int fd, ctr_drbg_context *ctr_drbg,
 	size_t n, buflen;
 	unsigned char *p, *end;
 	unsigned char buf[2048];
-	unsigned char hash[64]; // hash only uses 20!
+	unsigned char hash[32]; 
 	unsigned char tmp[16];
-	int manifest_len = 0;
+	int manifest_len = 0, dhmlen = 0;
 	int ret = 0;
 	report_t r;
 	rsa_sig_t s;
@@ -114,11 +115,14 @@ int exchange_dhm_quote(egate_t *g, int fd, ctr_drbg_context *ctr_drbg,
         	goto exit;
 	}
 
+	/* n/buflen is the length of the public dhm parameters plus 2 plus the 
+	 * length of the rsa signature length */
 	n = buflen = ( buf[0] << 8 ) | buf[1];
 	if( buflen < 1 || buflen > sizeof( buf ) ) {
 		eg_printf(g, "ENCLAVE FAIL: Got an invalid buffer length %d.\n", buflen );
 		goto exit;
 	}
+	dhmlen = buflen - rsa->len - 2;
 
 	memset( buf, 0, sizeof( buf ) );
 	ret = net_recv( &fd, buf, n);
@@ -140,9 +144,9 @@ int exchange_dhm_quote(egate_t *g, int fd, ctr_drbg_context *ctr_drbg,
 		eg_printf(g, "ENCLAVE FAIL: invalid DHM modulus size %d\n", dhm->len );
         	goto exit;
     	}
-	manifest_len = buflen + dhm->len;
+	dhmlen = (int)(p - buf);
 
-	eg_printf(g, "ENCLAVE: Verifying the server's RSA signature\n");
+	eg_printf(g, "ENCLAVE: Verifying the server's RSA signature of %d bytes\n", dhmlen);
 	p += 2;
 	n = (size_t)(end - p);
 	if( n != rsa->len ) {
@@ -151,7 +155,7 @@ int exchange_dhm_quote(egate_t *g, int fd, ctr_drbg_context *ctr_drbg,
         	goto exit;
     	}
 
-    	sha1( buf, (int)( p - 2 - buf ), hash );
+    	sha256( buf, (int)dhmlen, hash, 0 );
 
     	ret = rsa_pkcs1_verify( rsa, NULL, NULL, RSA_PUBLIC, POLARSSL_MD_SHA256, 
 				0, hash, p ); 
@@ -163,7 +167,7 @@ int exchange_dhm_quote(egate_t *g, int fd, ctr_drbg_context *ctr_drbg,
 	eg_printf(g, "ENCLAVE: Creating DHM public key\n");
 	/* Now create our own diffie helman parameters into the buf as well, wiping
 	 * out the old key sent by the server */ 
-	ret = dhm_make_public( dhm, (int)dhm->len, buf + buflen, dhm->len,
+	ret = dhm_make_public( dhm, (int)dhm->len, buf + dhmlen, dhm->len,
 			       ctr_drbg_random, ctr_drbg);
 	if (!ret) {
         	eg_printf(g,  "ENCLAVE FAIL(%d): dhm_make_public failed.\n", ret );
@@ -173,6 +177,7 @@ int exchange_dhm_quote(egate_t *g, int fd, ctr_drbg_context *ctr_drbg,
 	eg_printf(g, "ENCLAVE: Getting quote with public key information\n");
 	/* Now create a quote using the hash of the manifest (both sides DH info) 
 	 * as contents */
+	manifest_len = dhmlen + dhm->len;
     	sha1( buf, manifest_len, hash );
 
 	ret = eg_request_quote(g, hash, &r, &s);

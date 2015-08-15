@@ -23,8 +23,9 @@
 #include "polarssl/net.h"
 #include "polarssl/aes.h"
 #include "polarssl/dhm.h"
+#include "polarssl/pk.h"
 #include "polarssl/rsa.h"
-#include "polarssl/sha1.h"
+#include "polarssl/sha256.h"
 #include "polarssl/entropy.h"
 #include "polarssl/ctr_drbg.h"
 
@@ -46,7 +47,7 @@ int main( void )
     int client_fd = -1;
 
     unsigned char buf[2048];
-    unsigned char hash[20];
+    unsigned char hash[32];
     unsigned char buf2[2];
     unsigned char manifest[2048];
     const char *pers = "dh_server";
@@ -56,11 +57,12 @@ int main( void )
     rsa_context rsa;
     dhm_context dhm;
     aes_context aes;
-
-    memset( &rsa, 0, sizeof( rsa ) );
+    pk_context pk;
+    pk_init(&pk);
     dhm_init( &dhm );
     aes_init( &aes );
 
+    memset(hash, 0, 64);
     /*
      * 1. Setup the RNG
      */
@@ -82,31 +84,16 @@ int main( void )
     printf( "\n  . Reading private key from bootstrap/test-priv.pem" );
     fflush( stdout );
 
-    if( ( f = fopen( "bootstrap/test-priv.pem", "rb" ) ) == NULL )
+
+
+    if( ( ret = pk_parse_keyfile(&pk, "bootstrap/test-priv.pem", NULL) ) != 0 )
     {
-        ret = 1;
-        printf( " failed\n  ! Could not open bootstrap/test-priv.pem\n\n");
+        printf( " failed\n  ! Could not parse key in bootstrap/test-priv.pem\n\n");
         goto exit;
     }
-
-    rsa_init( &rsa, RSA_PKCS_V15, 0 );
-
-    if( ( ret = mpi_read_file( &rsa.N , 16, f ) ) != 0 ||
-        ( ret = mpi_read_file( &rsa.E , 16, f ) ) != 0 ||
-        ( ret = mpi_read_file( &rsa.D , 16, f ) ) != 0 ||
-        ( ret = mpi_read_file( &rsa.P , 16, f ) ) != 0 ||
-        ( ret = mpi_read_file( &rsa.Q , 16, f ) ) != 0 ||
-        ( ret = mpi_read_file( &rsa.DP, 16, f ) ) != 0 ||
-        ( ret = mpi_read_file( &rsa.DQ, 16, f ) ) != 0 ||
-        ( ret = mpi_read_file( &rsa.QP, 16, f ) ) != 0 )
-    {
-        printf( " failed\n  ! mpi_read_file returned %d\n\n", ret );
-        goto exit;
-    }
-
-    rsa.len = ( mpi_msb( &rsa.N ) + 7 ) >> 3;
-
-    fclose( f );
+    rsa_copy(&rsa, pk_rsa(pk));
+    rsa_set_padding( &rsa, RSA_PKCS_V15, POLARSSL_MD_SHA256 );
+    pk_free(&pk);
 
     /*
      * 2b. Get the DHM modulus and generator
@@ -151,7 +138,7 @@ int main( void )
     /*
      * 4. Setup the DH parameters (P,G,Ys)
      */
-    printf( "\n  . Sending the server's DH parameters" );
+    printf( "\n  . Computing the server's DH parameters" );
     fflush( stdout );
 
     memset( buf, 0, sizeof( buf ) );
@@ -167,7 +154,10 @@ int main( void )
     /*
      * 5. Sign the parameters and send them
      */
-    sha1( buf, n, hash );
+    printf( "\n  . Hashing and signing the server's %d byte DH parameters", (int)n );
+    fflush( stdout );
+
+    sha256( buf, n, hash, 0 );
 
     buf[n    ] = (unsigned char)( rsa.len >> 8 );
     buf[n + 1] = (unsigned char)( rsa.len      );
