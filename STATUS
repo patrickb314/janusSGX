@@ -53,18 +53,18 @@ Current Todo:
   + Switch sgx-tool to use launch enclave to create launch tokens - DEFERRED
   - Fix RDRAND feature checking/setting in qemu 
   - Switch Makefile to have a bootstrap target and an all target
-+ Better runtime support - IN PROGRESS
++ Miscellaneous suntime support/fixes - IN PROGRESS
   * Change the starting heap size to something decent
   - Get a real bootmem allocator in place 
 - Socket/TLS support
   * Add a useful entropy source in enclaves (probably implement RDRAND instruction in
     qemu using /dev/urandom). Can't generate ephemeral keys reasonably without this!
-  + Create a socket shim/proxy out of the enclave using sendto/recvfrom commands over the 
-    shared buffer channel - IN PROGRESS< key parts working
+  * Create a socket shim/proxy out of the enclave using sendto/recvfrom commands over the 
+    shared buffer channel - DONE
   - Test/debug SSL/TLS communication primitives from enclaves 
 - Test cases
-  - Finish a simple test case that illustrates the exact remote attestation process described
-    in the intel paper
+  * Finish a simple test case that illustrates the remote attestation process 
+    described in the intel paper
   - Create a simple test case that can talk to an openssl client
   - Create a simple test case illustrating the use of the various types of 
     keys
@@ -76,7 +76,9 @@ Current Todo:
 - Fix CSSA setup to actually set it to proper values and still sign correctly 
   in the emulator. Once this is done, we can turn on the exception handler 
   check in sgx-entry.S
+- Switch tools, emulator, and libsgx to use SHA256 instead of SHA1 
 - Fix SSA protections to guard enclave stack against overflow
+- Add support for multiple TCSes
 - Define an actualy sgx_exit that pulls the return address from the base of
   the stack to go to the right place, but for now still does sgx_exit(0) 
   given the emulator's strange behavior
