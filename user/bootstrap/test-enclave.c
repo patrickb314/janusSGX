@@ -94,7 +94,7 @@ int exchange_dhm_quote(egate_t *g, int fd, ctr_drbg_context *ctr_drbg,
 	size_t n, buflen;
 	unsigned char *p, *end;
 	unsigned char buf[2048];
-	unsigned char hash[32]; 
+	unsigned char hash[64]; // Only first 20 used by SHA1
 	unsigned char tmp[16];
 	int manifest_len = 0, dhmlen = 0;
 	int ret = 0;
@@ -169,7 +169,7 @@ int exchange_dhm_quote(egate_t *g, int fd, ctr_drbg_context *ctr_drbg,
 	 * out the old key sent by the server */ 
 	ret = dhm_make_public( dhm, (int)dhm->len, buf + dhmlen, dhm->len,
 			       ctr_drbg_random, ctr_drbg);
-	if (!ret) {
+	if (ret != 0) {
         	eg_printf(g,  "ENCLAVE FAIL(%d): dhm_make_public failed.\n", ret );
         	goto exit;
 	}
@@ -181,7 +181,7 @@ int exchange_dhm_quote(egate_t *g, int fd, ctr_drbg_context *ctr_drbg,
     	sha1( buf, manifest_len, hash );
 
 	ret = eg_request_quote(g, hash, &r, &s);
-	if (!ret) {
+	if (ret != 0) {
         	eg_printf(g,  "ENCLAVE FAIL(%d): failed to get quote.\n", ret );
         	goto exit;
 	}
@@ -221,6 +221,7 @@ int exchange_dhm_quote(egate_t *g, int fd, ctr_drbg_context *ctr_drbg,
         	eg_printf(g, "ENCLAVE FAIL: net_send returned %d unexpectedly.\n", ret);
 		goto exit;
 	}
+	ret = 0;
 
 exit:
 	return ret;

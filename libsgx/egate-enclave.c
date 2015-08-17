@@ -229,9 +229,10 @@ int eg_request_quote(egate_t *g, unsigned char nonce[64], report_t *r, rsa_sig_t
 	 * the quoting enclave and generate a report, then we get that report
 	 * signed by the quoting enclave. */
 
-	/* Targetinfo/report acquisition */
+	/* Request a targetinfo for the quoting enclave */
 	memset(&c, 0, sizeof(ecmd_t));
 	c.t = ECMD_QUOTE_TARGET_REQ;
+	egate_enclave_enqueue(g, &c, NULL, 0);
 
 	/* And wait for it to come back */
 	ret = egate_enclave_poll(g, &c, &t, sizeof(targetinfo_t));
@@ -240,6 +241,8 @@ int eg_request_quote(egate_t *g, unsigned char nonce[64], report_t *r, rsa_sig_t
 		egate_enclave_error(g, "Invalid quote targetinfo reponse received.");
 		return -1;
 	}
+
+	/* Generate the report */
 	sgx_report(&t, nonce, r);
 
 	/* Now get the report signed. */

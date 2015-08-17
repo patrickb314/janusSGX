@@ -134,10 +134,20 @@ int egate_user_enqueue(egate_t *g, ecmd_t *r, void *buf, size_t len)
         	end = roundup2(end + r->len, 8) % ECHAN_BUF_SIZE;
 	}
 
-        /* XXX need a memory barrier here, though since hte copy is in a function
+        /* XXX need a memory barrier here, though since the copy is in a function
          * call that hopefully isn't optimized away, we could be okay for now. */
         c->end = end;
         return 0;
+}
+
+int egate_user_reset(egate_t *g)
+{
+	ecmd_t c;
+	c.t = ECMD_RESET;
+	c.val = 0;
+	c.len = 0;
+	egate_user_enqueue(g, &c, NULL, 0);
+	return 0;
 }
 
 int egate_user_sock_open(egate_t *g, ecmd_t *r, void *buf, size_t len)
@@ -552,9 +562,11 @@ int egate_user_quote_target(egate_t *g, ecmd_t *r, void *buf, size_t len)
 	int ret;
 
 	/* These should turn into RESETs. */
-	if (!g->quotetcs) return -1;
-	if (!g->quotesig) return -1;
-	if (r->len != 0) return -1;
+	if (!g->quotetcs || !g->quotesig || r->len != 0) {
+		printf("PROXY: Could not compute quote target.\n");
+		egate_user_reset(g);
+		return -1;
+	}
 
 	memset(&t, 0, sizeof(targetinfo_t));
         memcpy(&t.measurement, &g->quotesig->enclaveHash, 32);
@@ -576,9 +588,12 @@ int egate_user_quote(egate_t *g, ecmd_t *r, void *buf, size_t len)
 	ecmd_t resp;
 	int ret;
 	if (r->len != sizeof(report_t)) {
-		
+		printf("PROXY: Received invalid report to quote.\n");
+		egate_user_reset(g);
+		return -1;
 	}
 	rpt = buf;
+
 	/* So we have a report. Get a signature for it. */
 	request_quote(g->quotetcs, exception_handler, rpt, &sig);
 
@@ -597,7 +612,7 @@ int egate_user_cons_write(egate_t *g, ecmd_t *r, void *buf, size_t len)
 	return 0;
 }
 
-int egate_user_reset(egate_t *g, ecmd_t *r, void *buf, size_t len)
+int egate_user_handle_reset(egate_t *g, ecmd_t *r, void *buf, size_t len)
 {
 	printf("Reset received from enclave.\n");
 	return 0;
@@ -606,7 +621,7 @@ int egate_user_reset(egate_t *g, ecmd_t *r, void *buf, size_t len)
 typedef int (*req_handler_t)(egate_t *, ecmd_t *, void *buf, size_t len);
 
 req_handler_t dispatch[ECMD_NUM] = { 
-	[ECMD_RESET] = egate_user_reset,
+	[ECMD_RESET] = egate_user_handle_reset,
 	[ECMD_CONS_WRITE] = egate_user_cons_write,
 	[ECMD_SOCK_OPEN_REQ] = egate_user_sock_open,
 	[ECMD_SOCK_CLOSE_REQ] = egate_user_sock_close,
