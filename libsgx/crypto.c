@@ -14,7 +14,7 @@ void rsa_sha256_sign(rsa_context *ctx, unsigned char *input, size_t bytes,
 {
 	unsigned char hash[32];
 
-        sha1((unsigned char *)input, bytes, hash);
+        sha256((unsigned char *)input, bytes, hash, 0);
         rsa_pkcs1_sign(ctx, NULL, NULL, RSA_PRIVATE,
                        POLARSSL_MD_SHA256, 32, hash, sig);
 	return;
