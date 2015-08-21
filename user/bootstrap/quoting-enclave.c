@@ -81,28 +81,29 @@ char *quoting_key = "-----BEGIN RSA PRIVATE KEY-----\n"
 "59G87VFwHz+YjbG0+ab3055a5u13JsBjyLDfyIo6GduPRFYHBXEh\n"
 "-----END RSA PRIVATE KEY-----\n";
 
-void sign_quote(report_t *r, rsa_sig_t *s)
+void sign_quote(report_t *r, unsigned char *s)
 {
 	pk_context ctx;
 	pk_init(&ctx);
 
 	pk_parse_key(&ctx, (unsigned char *)quoting_key, 
 		     strlen(quoting_key), NULL, 0);
-	rsa_sign(pk_rsa(ctx), (unsigned char *)r, 384,
-                 (unsigned char *)s);
+	rsa_set_padding( pk_rsa(ctx), RSA_PKCS_V15, POLARSSL_MD_SHA256 );
+	rsa_sha256_sign(pk_rsa(ctx), (unsigned char *)r, 384,
+                        (unsigned char *)s);
 	pk_free(&ctx);
 	return;
 }
 
-void enclave_main(report_t *report, rsa_sig_t *sig)
+void enclave_main(report_t *report, unsigned char *sig)
 {
 	report_t *r = NULL; 
-	rsa_sig_t *s = NULL;
+	unsigned char *s = NULL;
 
 	r = malloc(sizeof(report_t));
-	s = malloc(sizeof(rsa_sig_t));
+	s = malloc(KEY_LENGTH);
 	
-	memset(s, 0x00, sizeof(rsa_sig_t));
+	memset(s, 0x00, KEY_LENGTH);
 
 	/* First, copy what we're working with to enclave memory
 	 * to avoid complications with the host racing with us 
@@ -118,12 +119,12 @@ void enclave_main(report_t *report, rsa_sig_t *sig)
 	sign_quote(r, s);
 
 	/* Copy the signed quote out */
-	copyout(sig, s, sizeof(rsa_sig_t));
+	copyout(sig, s, KEY_LENGTH);
 out:
 	if (s) free(s);
 	if (r) free(r);
 	return;
 fail: 
-	memset(sig, -1, sizeof(rsa_sig_t));
+	memset(sig, 0xff, KEY_LENGTH);
 	goto out;
 }

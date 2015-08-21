@@ -133,7 +133,7 @@ int egate_enclave_dequeue(egate_t *g, ecmd_t *r, void *buf, size_t len)
         /* Now we know we actually have the space to dequeue the full command,
          * so get the data as well and then increment start by the full
          * amount */
-        start += sizeof(ecmd_t);
+        start = (start + sizeof(ecmd_t)) % ECHAN_BUF_SIZE;
 	if (r->len) {
         	ret = echan_copytoenclave(c, start, buf, r->len);
 	}
@@ -218,7 +218,7 @@ int egate_enclave_error(egate_t *g, char *msg)
 	return 0;
 }
 
-int eg_request_quote(egate_t *g, unsigned char nonce[64], report_t *r, rsa_sig_t *s)
+int eg_request_quote(egate_t *g, unsigned char nonce[64], report_t *r, unsigned char *s)
 {
 	ecmd_t c;
 	int ret;
@@ -252,13 +252,13 @@ int eg_request_quote(egate_t *g, unsigned char nonce[64], report_t *r, rsa_sig_t
 	egate_enclave_enqueue(g, &c, r, sizeof(report_t));
 
 	/* And wait for the signature back */
-	ret = egate_enclave_poll(g, &c, lbuf, sizeof(rsa_sig_t));
+	ret = egate_enclave_poll(g, &c, lbuf, KEY_LENGTH);
 	if (ret || c.t != ECMD_QUOTE_RESP 
-	    || c.len != sizeof(rsa_sig_t)) {
+	    || c.len != KEY_LENGTH) {
 		egate_enclave_error(g, "Invalid quote reponse received.");
 		return -1;
 	}
-	memcpy(s, lbuf, sizeof(rsa_sig_t));
+	memcpy(s, lbuf, KEY_LENGTH);
 	return 0;
 }
 

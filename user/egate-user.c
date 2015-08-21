@@ -104,11 +104,12 @@ int egate_user_dequeue(egate_t *g, ecmd_t *r, void *buf, size_t len)
 	/* Now we know we actually have the space to dequeue the full command, 
 	 * so get the data as well and then increment start by the full 
 	 * amount */
-	start += roundup2(sizeof(ecmd_t), 8);
+	start = (start + roundup2(sizeof(ecmd_t), 8)) % ECHAN_BUF_SIZE;
 	if (r->len) {
 		ret = echan_copytouser(c, start, buf, r->len);
 	}
 	c->start = roundup2(start + r->len, 8) % ECHAN_BUF_SIZE;
+	fflush(stdout);
 	
 	return ret;
 }
@@ -551,15 +552,13 @@ int egate_user_request_report(egate_t *g, targetinfo_t *t, char buf[64], report_
 	return 0;
 }
 
-ENCCALL2(request_quote, report_t *, rsa_sig_t *)
+ENCCALL2(request_quote, report_t *, unsigned char *)
 
 /* Return the ID of the quoting enclave back to the enclave */
 int egate_user_quote_target(egate_t *g, ecmd_t *r, void *buf, size_t len)
 {
 	targetinfo_t t;
-	report_t rpt;
 	ecmd_t c;
-	int ret;
 
 	/* These should turn into RESETs. */
 	if (!g->quotetcs || !g->quotesig || r->len != 0) {
@@ -582,11 +581,9 @@ int egate_user_quote_target(egate_t *g, ecmd_t *r, void *buf, size_t len)
 
 int egate_user_quote(egate_t *g, ecmd_t *r, void *buf, size_t len)
 {
-	targetinfo_t t;
 	report_t *rpt;
-	rsa_sig_t sig;
+	unsigned char sig[KEY_LENGTH];
 	ecmd_t resp;
-	int ret;
 	if (r->len != sizeof(report_t)) {
 		printf("PROXY: Received invalid report to quote.\n");
 		egate_user_reset(g);
@@ -595,13 +592,13 @@ int egate_user_quote(egate_t *g, ecmd_t *r, void *buf, size_t len)
 	rpt = buf;
 
 	/* So we have a report. Get a signature for it. */
-	request_quote(g->quotetcs, exception_handler, rpt, &sig);
+	request_quote(g->quotetcs, exception_handler, rpt, sig);
 
 	/* Now send the resulting request back */
 	resp.t = ECMD_QUOTE_RESP;
-	resp.len = sizeof(rsa_sig_t);
+	resp.len = KEY_LENGTH;
 	resp.val = 0;
-	egate_user_enqueue(g, &resp, &sig, sizeof(rsa_sig_t));
+	egate_user_enqueue(g, &resp, sig, KEY_LENGTH);
 
 	return 0;
 }

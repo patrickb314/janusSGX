@@ -9,16 +9,14 @@ void aes_cmac(unsigned char *key, unsigned char *input, size_t bytes,
     aes_cmac128_final(&ctx, mac);
 }
 
-/* XXX PGB Should we use SHA1 here or switch to a bigger hash and 
- * SHA256? */
-void rsa_sign(rsa_context *ctx, unsigned char *input, size_t bytes, 
-	      unsigned char *sig)
+void rsa_sha256_sign(rsa_context *ctx, unsigned char *input, size_t bytes, 
+	             unsigned char *sig)
 {
-	unsigned char hash[HASH_SIZE];
+	unsigned char hash[32];
 
         sha1((unsigned char *)input, bytes, hash);
         rsa_pkcs1_sign(ctx, NULL, NULL, RSA_PRIVATE,
-                       POLARSSL_MD_SHA1, HASH_SIZE, hash, sig);
+                       POLARSSL_MD_SHA256, 32, hash, sig);
 	return;
 }
 

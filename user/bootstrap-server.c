@@ -42,7 +42,7 @@ int main( void )
     FILE *f;
 
     int ret;
-    size_t n, buflen;
+    size_t n, buflen, manifestlen;
     int listen_fd = -1;
     int client_fd = -1;
 
@@ -54,7 +54,7 @@ int main( void )
     report_t r;
     entropy_context entropy;
     ctr_drbg_context ctr_drbg;
-    rsa_context rsa;
+    rsa_context rsa_server, rsa_quoting;
     dhm_context dhm;
     aes_context aes;
     pk_context pk;
@@ -79,7 +79,7 @@ int main( void )
     }
 
     /*
-     * 2a. Read the server's private RSA key
+     * 2a. Read the server private RSA key
      */
     printf( "\n  . Reading private key from bootstrap/test-priv.pem" );
     fflush( stdout );
@@ -91,8 +91,8 @@ int main( void )
         printf( " failed\n  ! Could not parse key in bootstrap/test-priv.pem\n\n");
         goto exit;
     }
-    rsa_copy(&rsa, pk_rsa(pk));
-    rsa_set_padding( &rsa, RSA_PKCS_V15, POLARSSL_MD_SHA256 );
+    rsa_copy(&rsa_server, pk_rsa(pk));
+    rsa_set_padding( &rsa_server, RSA_PKCS_V15, POLARSSL_MD_SHA256 );
     pk_free(&pk);
 
     /*
@@ -159,17 +159,17 @@ int main( void )
 
     sha256( buf, n, hash, 0 );
 
-    buf[n    ] = (unsigned char)( rsa.len >> 8 );
-    buf[n + 1] = (unsigned char)( rsa.len      );
+    buf[n    ] = (unsigned char)( rsa_server.len >> 8 );
+    buf[n + 1] = (unsigned char)( rsa_server.len      );
 
-    if( ( ret = rsa_pkcs1_sign( &rsa, NULL, NULL, RSA_PRIVATE, POLARSSL_MD_SHA256,
+    if( ( ret = rsa_pkcs1_sign( &rsa_server, NULL, NULL, RSA_PRIVATE, POLARSSL_MD_SHA256,
                                 0, hash, buf + n + 2 ) ) != 0 )
     {
         printf( " failed\n  ! rsa_pkcs1_sign returned %d\n\n", ret );
         goto exit;
     }
 
-    buflen = n + 2 + rsa.len;
+    buflen = n + 2 + rsa_server.len;
     buf2[0] = (unsigned char)( buflen >> 8 );
     buf2[1] = (unsigned char)( buflen      );
 
@@ -200,15 +200,26 @@ int main( void )
     }
 
     memcpy(manifest + n, buf, dhm.len); // Complete constructing the manifest
+    manifestlen = n + dhm.len;
 
-    printf( "\n  . Receiving the client's enclave report value" );
+    printf( "\n  . Receiving the client's enclave report" );
     if( ( ret = net_recv( &client_fd, (unsigned char *)&r, sizeof(report_t) ) ) != (int) sizeof(report_t) )
     {
         printf( " failed\n  ! net_recv returned %d\n\n", ret );
         goto exit;
     }
 
-    printf( "\n  . Receiving the quoting enclave signature of the report NOT IMPLEMENTED" );
+    printf( "\n  . Computing the manifest hash and comparing with hash in report");
+    memset(hash, 0, 64);
+    sha256(manifest, manifestlen, hash, 0);
+    
+    ret = memcmp(hash, r.reportData, 64);
+    if (ret) {
+        printf( " failed\n  ! manifest hash and report hash did not match\n\n");
+        goto exit;
+    }
+
+    printf( "\n  . Receiving the quoting enclave signature of the report" );
     if( ( ret = net_recv( &client_fd, buf2, 2 ) ) != 2 )
     {
         printf( " failed\n  ! net_recv returned %d\n\n", ret );
@@ -222,7 +233,31 @@ int main( void )
         goto exit;
     }
 
-    printf( "\n  . Verifying the report hash and quote signature NOT IMPLEMENTED\n" );
+    printf( "\n  . Checking that the report is signed with the quoting key" );
+    if( ( ret = pk_parse_public_keyfile(&pk, "bootstrap/quoting-pub.pem") ) != 0 )
+    {
+        printf( " failed\n  ! Could not parse key in bootstrap/quoting-pub.pem\n\n");
+        goto exit;
+    }
+    rsa_copy(&rsa_quoting, pk_rsa(pk));
+    rsa_set_padding( &rsa_quoting, RSA_PKCS_V15, POLARSSL_MD_SHA256 );
+    pk_free(&pk);
+
+    if (rsa_quoting.len != buflen) {
+        printf( " failed\n  ! Received signature length (%lu) did not match RSA key length (%lu).\n", buflen, rsa_quoting.len);
+	ret = -1;
+	goto exit;
+    }
+
+    sha256((unsigned char *)&r, 384, hash, 0);
+
+    ret = rsa_pkcs1_verify( &rsa_quoting, NULL, NULL, RSA_PUBLIC, 
+			    POLARSSL_MD_SHA256, 0, hash, buf);
+    if (ret)
+    {
+        printf( " failed\n  ! rsa_pkcs1_verify returned %d\n\n", ret );
+        goto exit;
+    }
 
     /*
      * 7. Derive the shared secret: K = Ys ^ Xc mod P
@@ -269,7 +304,8 @@ exit:
         net_close( client_fd );
 
     aes_free( &aes );
-    rsa_free( &rsa );
+    rsa_free( &rsa_server );
+    rsa_free( &rsa_quoting );
     dhm_free( &dhm );
     ctr_drbg_free( &ctr_drbg );
     entropy_free( &entropy );

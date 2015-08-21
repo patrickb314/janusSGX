@@ -96,16 +96,16 @@ int exchange_dhm_quote(egate_t *g, int fd, ctr_drbg_context *ctr_drbg,
 	unsigned char buf[2048];
 	unsigned char hash[64]; // Only first 20 used by SHA1
 	unsigned char tmp[16];
-	int manifest_len = 0, dhmlen = 0;
+	int manifest_len = 0, dhmlen = 0, rsalen = 0;
 	int ret = 0;
 	report_t r;
-	rsa_sig_t s;
+	unsigned char s[KEY_LENGTH];
 
-	memset(&s, 0, sizeof(s));
+	memset(s, 0, sizeof(s));
 	memset(hash, 0, 64);
 	dhm_init( dhm );
 
-	eg_printf(g, "ENCLAVE: Receiving diffie-hellman paramters from server.\n");
+	eg_printf(g, "ENCLAVE: Receiving diffie-hellman parameters from server.\n");
 
 	memset(buf, 0, sizeof(buf));
 	ret = net_recv( &fd, buf, 2 );
@@ -131,9 +131,10 @@ int exchange_dhm_quote(egate_t *g, int fd, ctr_drbg_context *ctr_drbg,
         	eg_printf(g, "ENCLAVE FAIL: net_recv returned %d unexpectedly.\n", ret);
         	goto exit;
     	}
-	p = buf, end = buf + buflen;
+	p = buf; 
+	end = buf + buflen;
 
-	ret = dhm_read_params( dhm, &p, end );
+	ret = dhm_read_params( dhm, &p, p + dhmlen );
 	if (ret != 0 ) {
 		eg_printf(g, "ENCLAVE FAIL(%d): dhm_read_params failed\n", ret );
 		goto exit;
@@ -144,17 +145,18 @@ int exchange_dhm_quote(egate_t *g, int fd, ctr_drbg_context *ctr_drbg,
 		eg_printf(g, "ENCLAVE FAIL: invalid DHM modulus size %d\n", dhm->len );
         	goto exit;
     	}
-	dhmlen = (int)(p - buf);
 
 	eg_printf(g, "ENCLAVE: Verifying the server's RSA signature of %d bytes\n", dhmlen);
+	rsalen = (p[0] << 8) | (p[1]);
 	p += 2;
 	n = (size_t)(end - p);
-	if( n != rsa->len ) {
+	if( (n != rsalen) || (n != rsa->len ) ) {
         	ret = 1;
-        	eg_printf(g, "ENCLAVE FAIL: Invalid RSA signature size %d\n", n);
+        	eg_printf(g, "ENCLAVE FAIL: Invalid RSA signature size %d/%d/%d\n", n, rsa->len, rsalen);
         	goto exit;
     	}
 
+	memset(hash, 0, 64);
     	sha256( buf, (int)dhmlen, hash, 0 );
 
     	ret = rsa_pkcs1_verify( rsa, NULL, NULL, RSA_PUBLIC, POLARSSL_MD_SHA256, 
@@ -178,9 +180,10 @@ int exchange_dhm_quote(egate_t *g, int fd, ctr_drbg_context *ctr_drbg,
 	/* Now create a quote using the hash of the manifest (both sides DH info) 
 	 * as contents */
 	manifest_len = dhmlen + dhm->len;
-    	sha1( buf, manifest_len, hash );
+	memset(hash, 0, 64);
+    	sha256( buf, manifest_len, hash, 0 );
 
-	ret = eg_request_quote(g, hash, &r, &s);
+	ret = eg_request_quote(g, hash, &r, s);
 	if (ret != 0) {
         	eg_printf(g,  "ENCLAVE FAIL(%d): failed to get quote.\n", ret );
         	goto exit;
@@ -191,7 +194,7 @@ int exchange_dhm_quote(egate_t *g, int fd, ctr_drbg_context *ctr_drbg,
 	 * info. The receiver has to hold on to their info anyway to check the hash, so 
 	 * why send it? */
 	eg_printf(g, "ENCLAVE: Sending our DH info quote back to server.\n");
-	ret = net_send(&fd, buf + buflen, dhm->len);
+	ret = net_send(&fd, buf + dhmlen, dhm->len);
 	if (ret != dhm->len) {
 		ret = -1;
         	eg_printf(g, "ENCLAVE FAIL: net_send returned %d unexpectedly.\n", ret);
@@ -207,16 +210,16 @@ int exchange_dhm_quote(egate_t *g, int fd, ctr_drbg_context *ctr_drbg,
 	}
 
 	eg_printf(g, "ENCLAVE: Sending signature of report back to server.\n");
-	tmp[0] = (unsigned char) ((sizeof(rsa_sig_t) >> 8) & 0xff);
-	tmp[1] = (unsigned char) (sizeof(rsa_sig_t) & 0xff);
+	tmp[0] = (unsigned char) ((KEY_LENGTH >> 8) & 0xff);
+	tmp[1] = (unsigned char) (KEY_LENGTH & 0xff);
 	ret = net_send(&fd, tmp, 2);
 	if (ret != 2) {
 		ret = -1;
         	eg_printf(g, "ENCLAVE FAIL: net_recv returned %d unexpectedly.\n", ret);
 		goto exit;
 	}
-	ret = net_send(&fd, (unsigned char *)&r, sizeof(rsa_sig_t));
-	if (ret != sizeof(rsa_sig_t)) {
+	ret = net_send(&fd, s, KEY_LENGTH);
+	if (ret != KEY_LENGTH) {
 		ret = -1;
         	eg_printf(g, "ENCLAVE FAIL: net_send returned %d unexpectedly.\n", ret);
 		goto exit;
@@ -289,9 +292,16 @@ void enclave_main(egate_t *g)
 	 * the remote knows we're a proper enclave. Let's see what the secret is! */
 	eg_printf(g, "ENCLAVE: Receiving secret from provisioner.\n");
 	ret = net_recv(&fd, buf, 16);
+        if (ret != 16) {
+        	eg_printf(g, "ENCLAVE_FAIL(%d): did not receive secret from provisioner.\n", 
+			  ret);
+		ret = 1; 
+		goto exit;
+	}
+
 	aes_crypt_ecb( &aes, AES_DECRYPT, buf, buf );
     	buf[16] = '\0';
-	eg_printf(g, "ENCLAVE: I know something you don't know.\n");
+	eg_printf(g, "ENCLAVE: I know something you don't know (%s).\n", buf);
 
 exit:
 	if( fd != -1 ) net_close( fd );
