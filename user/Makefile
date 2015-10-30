@@ -48,7 +48,7 @@ libpolarssl-user.a: mbedtls-config-sgxusr.h
 	cp ../mbedtls/library/libpolarssl.a ./libpolarssl-user.a
 
 %.o: %.c $(HDRS)
-	$(CC) -c $(CFLAGS) -o $@ $<
+	$(CC) -c $(CFLAGS) $(ENC_CFLAGS) -o $@ $<
 
 sgx-tool: sgx-tool.o $(SGX_OBJS) $(SSL_OBJS)
 	$(CC) $^ $(CFLAGS) -o $@ $(LDLIBS)
@@ -60,7 +60,7 @@ egate-proxy: egate-proxy.o $(SGX_OBJS) $(SSL_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
 
 sgx-%.o: sgx-%.c $(HDRS)
-	$(CC)  -c $(CFLAGS) $< -o $@
+	$(CC)  -I$(LIBSGXDIR)/include -c $(CFLAGS) $< -o $@
 
 test/%.o: test/%.c
 	$(CC) -c $(ENC_CFLAGS) -o $@ $<
