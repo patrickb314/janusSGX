@@ -31,9 +31,11 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 #include <sgx.h>
 
+#define SLEEP_TIME  3
 #define SERVER_PORT 11298
 #define PLAINTEXT "==Hello there!=="
 
@@ -173,9 +175,15 @@ int main( void )
     buf2[0] = (unsigned char)( buflen >> 8 );
     buf2[1] = (unsigned char)( buflen      );
 
-    if( ( ret = net_send( &client_fd, buf2, 2 ) ) != 2 ||
-        ( ret = net_send( &client_fd, buf, buflen ) ) != (int) buflen )
-    {
+    if( ( ret = net_send( &client_fd, buf2, 2 ) ) != 2 ) {
+        printf( " failed\n  ! net_send returned %d\n\n", ret );
+        goto exit;
+    }
+
+    // put an interval between the two requests
+    sleep(SLEEP_TIME);
+
+    if ( ( ret = net_send( &client_fd, buf, buflen ) != (int) buflen ) ) {
         printf( " failed\n  ! net_send returned %d\n\n", ret );
         goto exit;
     }
