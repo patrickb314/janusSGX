@@ -1,0 +1,78 @@
+# @author Judicael Djoko <jbriand@cs.pitt.edu>\
+	# Inspired from kitten & janusSGX
+#
+SGXPROGS = $(filter %_sgx, $(PROGRAMS))
+PROGS = $(filter-out $(SGXPROGS), $(PROGRAMS))
+
+OSGXPROGS = $(addprefix $O/,$(SGXPROGS))
+OPROGRAMS = $(addprefix $O/,$(PROGS))
+
+.PHONY: app
+app:: $(OPROGRAMS) $(OSGXPROGS)
+
+# Default template for building app
+define PROGRAM_template
+$(1)_OBJS = $$($(1)_SRC:.c=.o)
+$(1)_OOBJS = $$(addprefix $$O/, $$($(1)_OBJS))
+
+# if we've to build any special objects
+EXTRA_CFLAGS = $$($(1)_CFLAGS)
+
+$$O/$(1): $$($(1)_OOBJS)
+	$$(call buildprog,$$@, $$^ $$($(1)_LDFLAGS))
+
+CLEAN_FILES += $(1) $$($(1)_OOBJS)
+endef
+
+define SGXPROGRAM_template
+$(1)_OBJS = $$($(1)_SRC:.c=.o)
+$(1)_OOBJS = $$(addprefix $$O/, $$($(1)_OBJS))
+
+EXTRA_CFLAGS = $$($(ENC_CFLAGS))
+
+#$(foreach obj, $(1)_OOBJS, $(eval $(call buildobj,$(obj),$$(1)_SRC,$$(ENC_CFLAGS))))
+
+$$O/$(1): $$($(1)_OOBJS)
+	$$(call buildsgxprog,$$@, $$^ $$($(1)_LDADD_OTHER))
+
+CLEAN_FILES += $(1) $$($(1)_OOBJS)
+endef
+
+# Generate the targets for each app
+$(foreach prog, $(PROGS), $(eval $(call PROGRAM_template,$(prog))))
+$(foreach prog, $(SGXPROGS), $(eval $(call SGXPROGRAM_template,$(prog))))
+
+.PHONY: clean
+clean: FORCE
+	$(call build,$(RM) $(CLEAN_FILES))
+
+# just prints out the command and executes it
+build = \
+	@if [ "$(V)" != 1 ]; then		\
+		echo "$(subst $O/,,$1)";	\
+	else							\
+		echo "$1";					\
+	fi;								\
+	$1
+
+buildsgxprog = \
+	$(call build,$(CC) $(ENC_LDFLAGS) $< $(SGX_START) -o $@ $(SGX_LDLIBS) -lgcc)
+
+buildprog = \
+	$(call build,$(CC) $(CC_LDFLAGS) $(LIBDIRS) -o $1 $2)
+
+# buildobj(object.o, src.c, cflags)
+buildobj = \
+	$(call build,$(CC) $3 $2 -c -o $1)
+
+# building object files
+$O/%_sgx.o: %_sgx.c
+	$(call build,$(CC) $(CFLAGS) $(ENC_CFLAGS) $(INCDIRS) -c -o $@ $< )
+
+# building object files
+$O/%.o: %.c
+	$(call build,$(CC) $(CFLAGS) $(EXTRA_CFLAGS) $(INCDIRS) -c -o $@ $< )
+
+.SILENT:
+
+FORCE:

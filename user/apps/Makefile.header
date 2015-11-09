@@ -1,0 +1,32 @@
+# @author Judicael Djoko <jbriand@cs.pitt.edu>\
+	# Insprired from the kitten userspace build system
+#
+.DEFAULT_GOAL := app
+
+# the current directory
+O = $(shell pwd)
+
+# from the perspective of a particular app
+SGX_DIR := ../../..
+
+LIBSGXDIR = $(O)/$(SGX_DIR)/libsgx
+USERSGXDIR = $(O)/$(SGX_DIR)/user
+
+BASE_CFLAGS := -g -I$(USERSGXDIR)/include -Wall -pedantic -Wno-unused-function -std=gnu11
+
+# Host code/tool build information
+CFLAGS := $(BASE_CFLAGS)
+
+SGXOBJS := sgx-user.o sgx-elf.o sgx-kern.o sgx-kern-epc.o sgx-utils.o sgx-signature.o egate-user.o
+OSGXOBJS = $(addprefix $(USERSGXDIR)/,$(SGXOBJS))
+
+ENC_CFLAGS=$(BASE_CFLAGS) -I$(LIBSGXDIR)/include -fno-stack-protector -static -fPIC -fvisibility=hidden
+ENC_ASFLAGS=-D__ASSEMBLY__ -I$(LIBSGXDIR)/include -Wall -fno-stack-protector -static -fPIC -g
+ENC_LDFLAGS=-static -nostdlib -Wl,-T,$(O)/../../sgx.lds
+SGX_START=$(LIBSGXDIR)/sgx-entry.o
+SGX_LDLIBS=-L$(LIBSGXDIR) -lsgx -lpolarssl-enc
+SGX_LIBS=$(LIBSGXDIR)/libpolarssl-enc.a $(LIBSGXDIR)/libsgx.a $(LIBSGXDIR)/sgx-entry.o
+
+
+.PHONY:app
+app::
