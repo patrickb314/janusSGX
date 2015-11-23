@@ -19,7 +19,7 @@ $(1)_OOBJS = $$(addprefix $$O/, $$($(1)_OBJS))
 EXTRA_CFLAGS = $$($(1)_CFLAGS)
 
 $$O/$(1): $$($(1)_OOBJS)
-	$$(call buildprog,$$@, $$^ $$($(1)_LDFLAGS))
+	$$(call buildprog,$$@,$$^,$$($(1)_LDFLAGS))
 
 CLEAN_FILES += $(1) $$($(1)_OOBJS)
 endef
@@ -28,12 +28,13 @@ define SGXPROGRAM_template
 $(1)_OBJS = $$($(1)_SRC:.c=.o)
 $(1)_OOBJS = $$(addprefix $$O/, $$($(1)_OBJS))
 
-EXTRA_CFLAGS = $$($(ENC_CFLAGS))
+EXTRA_CFLAGS = $$($(ENC_CFLAGS)) $$($(1)_CFLAGS)
 
 #$(foreach obj, $(1)_OOBJS, $(eval $(call buildobj,$(obj),$$(1)_SRC,$$(ENC_CFLAGS))))
 
 $$O/$(1): $$($(1)_OOBJS)
-	$$(call buildsgxprog,$$@, $$^ $$($(1)_LDADD_OTHER))
+	# target name, list of objects, extra ld flags
+	$$(call buildsgxprog,$$@,$$^,$$($(1)_LDFLAGS))
 
 CLEAN_FILES += $(1) $$($(1)_OOBJS)
 endef
@@ -56,10 +57,10 @@ build = \
 	$1
 
 buildsgxprog = \
-	$(call build,$(CC) $(ENC_LDFLAGS) $< $(SGX_START) -o $@ $(SGX_LDLIBS) -lgcc)
+	$(call build,$(CC) $(ENC_LDFLAGS) $2 $(SGX_START) -o $@ $(SGX_LDLIBS) -lgcc $3)
 
 buildprog = \
-	$(call build,$(CC) $(CC_LDFLAGS) $(LIBDIRS) -o $1 $2)
+	$(call build,$(CC) $(CC_LDFLAGS) $(LIBDIRS) -o $1 $2 $3)
 
 # buildobj(object.o, src.c, cflags)
 buildobj = \

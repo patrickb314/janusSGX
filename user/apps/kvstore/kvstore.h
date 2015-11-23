@@ -1,12 +1,19 @@
 #ifndef _KVSTORE_H_
 #define _KVSTORE_H_
 
-#define KVSTORE_KEY_LEN 20
-#define KVSTORE_MSG_LEN 180
+// size of the encryption key
+#define KVSTORE_AESKEY_LEN      16
+#define KVSTORE_AESKEY_BITS     KVSTORE_AESKEY_LEN << 3
+#define KVSTORE_AESIV_LEN       32
+
+#define KVSTORE_KEY_LEN 32
+#define KVSTORE_VAL_LEN 192
 
 typedef enum {
-    KVSTORE_SET = 0x01,
-    KVSTORE_GET = 0x02,
+    KVSTORE_EXIT    = 0x00,
+    KVSTORE_NONE,
+    KVSTORE_SET,
+    KVSTORE_GET
 } kvstore_type_t;
 
 typedef enum {
@@ -18,9 +25,15 @@ typedef struct {
 } __attribute__((packed)) kvstore_ack_t;
 
 typedef struct {
-    kvstore_type_t type;
     char key[KVSTORE_KEY_LEN];
-    char msg[KVSTORE_MSG_LEN];
+    char val[KVSTORE_VAL_LEN];
+} __attribute__((packed)) kvstore_load_t;
+
+typedef struct {
+    kvstore_type_t type;
+    unsigned char sess_id;
+    unsigned char iv[KVSTORE_AESIV_LEN];
+    kvstore_load_t payload;
 } __attribute__((packed)) kvstore_cmd_t;
 
 #endif
