@@ -5,6 +5,7 @@
 
 #define KVSERVER_HASH_SIZE  32
 #define KVSERVER_BUF_SIZE   2048
+#define KVSERVER_PUBKEY_SIZE    512
 
 /* used to decide what kind of operations are to be performed */
 typedef enum {
@@ -18,6 +19,8 @@ typedef struct {
     int dhmlen;
     unsigned char * buf1;
     unsigned char * buf2;
+    unsigned char * pubkey;
+    int pubkeysize;
 } __attribute__ ((packed)) kvenclave_dhm_t;
 
 #endif

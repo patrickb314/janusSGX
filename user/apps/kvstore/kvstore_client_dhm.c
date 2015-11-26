@@ -14,25 +14,33 @@
 #include "polarssl/entropy.h"
 #include "polarssl/ctr_drbg.h"
 
-int kvstore_dhm(int server_fd, aes_context * aes, unsigned char * enckey,
-        int keylen_bits)
-{
-    int ret, filesize;
-    size_t n, buflen, dhmlen, totallen;
+#define MAX_PUBKEY_FILESIZE 512
 
-    unsigned char *p, *end;
-    unsigned char buf[2048];
+int
+kvstore_dhm(int server_fd,
+            aes_context * aes,
+            char * client_name,
+            unsigned char * enckey,
+            int keylen_bits)
+{
+    int ret;
+    size_t n, buflen, dhmlen, totallen, namelen;
+
+    unsigned char *p, *end, *buf1;
+    unsigned char buf[2048], secret[2048];
     unsigned char hash[32];
     unsigned char dummy[1];
     unsigned char *fptr, *fptr_rsa;
+    char privatekey[50];
     const char *pers = "dh_client";
+
+    sprintf(privatekey, "keys/%s_priv.txt", client_name);
 
     entropy_context entropy;
     ctr_drbg_context ctr_drbg;
     rsa_context rsa;
     dhm_context dhm;
     pk_context pk;
-    FILE * f;
 
     dhm_init( &dhm );
 
@@ -54,8 +62,8 @@ int kvstore_dhm(int server_fd, aes_context * aes, unsigned char * enckey,
     fflush( stdout );
 
     pk_init(&pk);
-    if( (ret = pk_parse_public_keyfile(&pk, "keys/server_pub.pem")) != 0) {
-        printf(" failed\n ! could not parse public key (%d).\n", ret);
+    if( (ret = pk_parse_public_keyfile(&pk, "keys/enclave_pub.txt")) != 0) {
+        printf(" failed\n ! could not parse enclave public key (%d).\n", ret);
         goto exit;
     }
 
@@ -71,6 +79,7 @@ int kvstore_dhm(int server_fd, aes_context * aes, unsigned char * enckey,
     if( ( ret = net_recv( &server_fd, buf, 2 ) ) != 2 )
     {
         printf( " failed\n ! net_recv returned %d\n\n", ret );
+        ret = 1;
         goto exit;
     }
 
@@ -83,6 +92,7 @@ int kvstore_dhm(int server_fd, aes_context * aes, unsigned char * enckey,
 
     if( ( ret = net_send( &server_fd, dummy, 1) != 1 ) ) {
         printf( " failed \n ! Could not send confirmation to server\n\n" );
+        ret = 1;
         goto exit;
     }
 
@@ -91,6 +101,7 @@ int kvstore_dhm(int server_fd, aes_context * aes, unsigned char * enckey,
 
     if( ( ret = net_recv( &server_fd, buf, n ) ) != (int) n ) {
         printf( " failed\n ! net_recv returned %d\n\n", ret );
+        ret = 1;
         goto exit;
     }
 
@@ -128,66 +139,60 @@ int kvstore_dhm(int server_fd, aes_context * aes, unsigned char * enckey,
         goto exit;
     }
 
-
-    // send public values
-    printf( "\n . Sending own public value to server" );
-    fflush( stdout );
-
+    buf1 = buf + 4;
+    /* setting the client's hash and rsa sizes */
     n = dhm.len;
-    if( ( ret = dhm_make_public( &dhm, (int) dhm.len, buf, n,
+    if( ( ret = dhm_make_public( &dhm, (int) dhm.len, buf1, n,
                     ctr_drbg_random, &ctr_drbg ) ) != 0 ) {
         printf( " failed\n ! dhm_make_public returned %d\n\n", ret );
         goto exit;
     }
 
-    if( ( ret = net_send( &server_fd, buf, n ) ) != (int) n ) {
-        printf( " failed\n ! net_send returned %d\n\n", ret );
-        goto exit;
-    }
-
-
     // derive shared secret
     printf( "\n . Shared secret: " );
     fflush( stdout );
 
-    if( ( ret = dhm_calc_secret( &dhm, buf, &n,
+    if( ( ret = dhm_calc_secret( &dhm, secret, &n,
                     ctr_drbg_random, &ctr_drbg ) ) != 0 )
     {
         printf( " failed\n ! dhm_calc_secret returned %d\n\n", ret );
         goto exit;
     }
 
-    memcpy(enckey, buf, keylen_bits);
+    memcpy(enckey, secret, keylen_bits);
 
+    // send public values
+    printf( "\n . Sending own public value to server" );
+    fflush( stdout );
+
+    /* final buffer is of the format */
+    /*     total_len    | len(sign) | (dhm) | hash | sign
+     *      2 bytes     |  2 bytes  |       |  4
+     */
 
     // sending the public key value
-    printf("\n . Signing the public key");
+    printf("\n . Signing the message");
     fflush(stdout);
-    f = fopen("keys/public_key.pem", "r");
-    if (f == NULL) {
-        printf(" failed\n ! private key file not found\n\n");
-        ret = 1;
-        goto exit;
-    }
+    fptr = buf1 + n;
 
-    fptr = buf + 4;
-
-    filesize = fread(fptr, sizeof(char), 2048, f);
-    if (filesize == 0) {
-        printf(" failed\n ! file could not be read\n\n");
-        ret = 1;
-        goto exit;
-    }
-
-    fptr_rsa = fptr + filesize;
+    namelen = strlen(client_name);
 
     // perform the hash
-    sha256(fptr, filesize, hash, 0);
+    strncpy((char *)fptr, client_name, namelen);
+
+    // add the hash of the public key to buf
+    // move over by 32 bytes
+    fptr_rsa = fptr + namelen;
+    fptr_rsa[0] = '\0';
+    fptr_rsa++;
+
+    // + 1 to include the \0 terminator
+    sha256(buf1, n + namelen + 1, hash, 0);
 
     // read out private key
     pk_init(&pk);
-    if ( (ret = pk_parse_keyfile(&pk, "keys/private_key.pem", NULL)) != 0) {
-        printf(" failed\n ! could not parse private key (%d).\n", ret);
+    if ( (ret = pk_parse_keyfile(&pk, privatekey, NULL)) != 0) {
+        printf(" failed\n ! could not parse private key (%s, %d).\n", privatekey, ret);
         goto exit;
     }
     rsa_init( &rsa, RSA_PKCS_V15, POLARSSL_MD_SHA256 );
@@ -201,17 +206,14 @@ int kvstore_dhm(int server_fd, aes_context * aes, unsigned char * enckey,
 
     /*
      * our public string has this format
-     * pubkey_size (2) | pubkey (n) | sign_size (2) | signature (k)
+     * pubkey_size (2) | pubkey (n) | name + 1 | signature (k)
      */
-    totallen = filesize + 2 + rsa.len;
+    totallen = 2 + n + namelen + 1 + rsa.len;
     buf[0] = (unsigned char)(totallen >> 8);
     buf[1] = (unsigned char)(totallen);
     buf[2] = (unsigned char)(rsa.len >> 8);
     buf[3] = (unsigned char)(rsa.len);
 
-    /* TODO maybe encrypt the signature */
-
-    printf("\n . Sending our public key and signature");
     fflush(stdout);
     if ( ( ret = net_send( &server_fd, buf, 2 ) ) != 2 ) {
         printf( " failed\n  ! net_send returned %d\n\n", ret );
@@ -229,7 +231,7 @@ int kvstore_dhm(int server_fd, aes_context * aes, unsigned char * enckey,
         goto exit;
     }
 
-    // read response from server
+    // TODO this must contain session ID from server (0 means rejected)
     if ( ( ret = net_recv( &server_fd, dummy, 1) != 1 ) ) {
         printf( " failed \n ! Could not get answer from server\n\n" );
         goto exit;
@@ -240,7 +242,7 @@ int kvstore_dhm(int server_fd, aes_context * aes, unsigned char * enckey,
         ret = 1;
     }
 
-    printf("\n * Successfully logged in :) ");
+    printf("\n + Successfully logged in :) ");
 
 exit:
     fflush(stdout);

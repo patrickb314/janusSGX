@@ -39,6 +39,13 @@ const unsigned char private_key[] = "-----BEGIN RSA PRIVATE KEY-----\r\n"
 "DDeAQIs+pKMu+zn9yGjHgDrPTlOe+3kZV3eh3hys\r\n"
 "-----END RSA PRIVATE KEY-----\r\n";
 
+const unsigned char dynac_pubkey[] = "-----BEGIN PUBLIC KEY-----\r\n"
+"MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDAeSkie/h2PZ/HWKQ6IBE0XVnX\r\n"
+"vLKLf3v3N94VsOFbFuVjTNUOEaVU/hl91psSn1TJx8C6BS4JsvpUsPeUeynzC+w9\r\n"
+"ciHuKaHC5ucEjqKOhCnOxc9pS8fd6Ed0JIOHBC1rGLPD5F7bzQ5fXjozjriaMiV9\r\n"
+"KTtn0NYtfcoUSfXc3wIDAQAB\r\n"
+"-----END PUBLIC KEY-----\r\n";
+
 /* generated with openssl. 1024 bits */
 static const unsigned char dhparams[] = "-----BEGIN DH PARAMETERS-----\r\n"
 "MIIBCAKCAQEAq2DnZFH4pID4eTtaCslVDlP4vP7avU5qM6ICHx3z+JV0bPJn7hCO\r\n"
@@ -50,18 +57,18 @@ static const unsigned char dhparams[] = "-----BEGIN DH PARAMETERS-----\r\n"
 "-----END DH PARAMETERS-----\r\n";
 
 /* the rsa key */
-rsa_context rsa_server;
+rsa_context rsa_enclave;
+rsa_context rsa_pub_dynac;
 
-// set to 1 when rsa_server
+// set to 1 when rsa_enclave
 unsigned char rsa_bool = 0;
 
 int client_dhm_count = 0;
 
 /* internal data structure for managing the client's current context */
 typedef enum {
-    CLIENT_SEND_DHM     = 0,
-    CLIENT_GET_DHM      = 1,
-    CLIENT_GET_PUBKEY   = 2
+    CLIENT_SEND_DHM         = 0,
+    CLIENT_GET_DHM_PUBKEY   = 1
 } client_dhm_stage_t;
 
 typedef struct {
@@ -104,10 +111,12 @@ static int __init_rsa(egate_t *g) {
 
     int ret = 1;
 
-    pk_context pk_ctx;
+    pk_context pk_ctx, pk_ctx1;
     pk_init(&pk_ctx);
+    pk_init(&pk_ctx1);
 
-    rsa_init(&rsa_server, RSA_PKCS_V15, POLARSSL_MD_SHA256);
+    rsa_init(&rsa_enclave, RSA_PKCS_V15, POLARSSL_MD_SHA256);
+    rsa_init(&rsa_pub_dynac, RSA_PKCS_V15, POLARSSL_MD_SHA256);
 
     // parse the private key
     if( ( ret = pk_parse_key (&pk_ctx, private_key, sizeof(private_key),
@@ -116,11 +125,19 @@ static int __init_rsa(egate_t *g) {
         goto exit;
     }
 
-    rsa_copy(&rsa_server, pk_rsa(pk_ctx));
+    if( ( ret = pk_parse_public_key(&pk_ctx1, dynac_pubkey,
+                    sizeof(dynac_pubkey)) ) !=0 ) {
+        eg_printf(g, "! FAILED: parsing dynac private key (%x)\n", ret);
+        goto exit;
+    }
+
+    rsa_copy(&rsa_enclave, pk_rsa(pk_ctx));
+    rsa_copy(&rsa_pub_dynac, pk_rsa(pk_ctx1));
 
     rsa_bool = 1;
 
     pk_free(&pk_ctx);
+    pk_free(&pk_ctx1);
 
 exit:
     return ret;
@@ -162,12 +179,19 @@ int process_kvstore(egate_t * g, kvstore_cmd_t * cmd)
 
     case KVSTORE_GET:
         HASH_FIND_STR(kvdata, key, data);
+        if (kvdata == NULL) {
+            // let's just exit, nothing to copy
+            // TODO come up with a sanitary value
+            eg_printf(g, "key: %s not found", key);
+            return 0;
+        }
 
         // copy it to the kvstore
         memcpy(key, data->key, KVSTORE_KEY_LEN);
         memcpy(val, data->val, KVSTORE_VAL_LEN);
+
         // now encrypt and copy to E-
-        memcpy(ctx->iv, temp_cmd.iv, KVSTORE_AESIV_LEN);
+        memcpy(temp_cmd.iv, ctx->iv, KVSTORE_AESIV_LEN);
         aes_setkey_enc(ctx->aes, ctx->enckey, KVSTORE_AESKEY_BITS);
         aes_crypt_cbc(ctx->aes, AES_ENCRYPT, sizeof(kvstore_load_t),
                 ctx->iv, (const unsigned char *)&temp_cmd.payload,
@@ -223,23 +247,64 @@ static client_dhm_t * get_client_dhm(int client_id)
     return c_ret;
 }
 
+static rsa_context *
+__get_client_rsakey(egate_t * g,
+                    unsigned char * pubkey_and_sign,
+                    int pubkey_and_sign_len)
+{
+    int ret;
+    pk_context client_pubkey;
+    rsa_context * client_rsakey;
+    unsigned char hash[32];
+    // split it into signature and public key
+    unsigned char * pubkeystr = pubkey_and_sign + rsa_pub_dynac.len;
+    int pubkeylen = pubkey_and_sign_len - rsa_pub_dynac.len;
+
+    /* compute hash of public key and check signature */
+    sha256(pubkeystr, pubkeylen, hash, 0);
+
+    if ( ( ret = rsa_pkcs1_verify(&rsa_pub_dynac, NULL, NULL, RSA_PUBLIC,
+                    POLARSSL_MD_SHA256, 0, hash, pubkey_and_sign) ) != 0 ) {
+        eg_printf(g, " FAILED\n ! rsa_pkcs1_verify (%04zx)\n\n", ret);
+        goto exit;
+    }
+
+    /* instantial a public value */
+    client_rsakey = malloc(sizeof(rsa_context));
+
+    // parse the client's public key
+    pk_init(&client_pubkey);
+    if ( (ret = pk_parse_public_key(&client_pubkey, pubkeystr, pubkeylen))
+            != 0 ) {
+        eg_printf(g, " FAILED\n ! parsing client public value (%d, %04x)\n\n",
+                pubkeylen, ret);
+        goto exit;
+    }
+    rsa_init(client_rsakey, RSA_PKCS_V15, POLARSSL_MD_SHA256);
+    rsa_copy(client_rsakey, pk_rsa(client_pubkey));
+
+    pk_free(&client_pubkey);
+
+    return client_rsakey;
+exit:
+    return NULL;
+}
+
 int process_dhm(egate_t *g, kvenclave_dhm_t *dhm_t)
 {
     int ret = 0;
-    size_t n, buflen, c_keylen;
+    int pubkeysize;
+    size_t n, buflen, rsalen, dhmlen;
 
-    unsigned char buf[KVSERVER_BUF_SIZE];
-    unsigned char hash[KVSERVER_HASH_SIZE];
-    unsigned char buf2[2];
-    unsigned char *p;
+    unsigned char buf[KVSERVER_BUF_SIZE], hash[KVSERVER_HASH_SIZE], buf2[2],\
+        *p, pubkey[KVSERVER_PUBKEY_SIZE];
     const char *pers = "";
     entropy_context entropy;
     ctr_drbg_context * ctr_drbg;
     dhm_context * dhm;
     //aes_context * aes;
     client_dhm_t * client_dhm;
-    pk_context client_pubkey;
-    rsa_context client_rsakey;
+    rsa_context * client_rsakey;
 
     /* get the client context */
     client_dhm = get_client_dhm(dhm_t->cfd);
@@ -255,10 +320,8 @@ int process_dhm(egate_t *g, kvenclave_dhm_t *dhm_t)
     switch (client_dhm->stage) {
     case CLIENT_SEND_DHM:
         break;
-    case CLIENT_GET_DHM:
+    case CLIENT_GET_DHM_PUBKEY:
         goto get_client_dhm_params;
-    case CLIENT_GET_PUBKEY:
-        goto get_client_public_key;
     }
 
     /* for a new client we allocate our new data structures */
@@ -301,16 +364,16 @@ int process_dhm(egate_t *g, kvenclave_dhm_t *dhm_t)
     sha256(buf, n, hash, 0);
 
     // the size of the rsa output
-    buf[n    ] = (unsigned char)(rsa_server.len >> 8);
-    buf[n + 1] = (unsigned char)(rsa_server.len);
+    buf[n    ] = (unsigned char)(rsa_enclave.len >> 8);
+    buf[n + 1] = (unsigned char)(rsa_enclave.len);
 
-    if( ( ret = rsa_pkcs1_sign(&rsa_server, NULL, NULL, RSA_PRIVATE,
+    if( ( ret = rsa_pkcs1_sign(&rsa_enclave, NULL, NULL, RSA_PRIVATE,
                     POLARSSL_MD_SHA256, 0, hash, buf + n + 2 ) ) != 0) {
         eg_printf(g, "! FAILED: rsa_pkcs1_sign (%d)\n", ret);
         goto exit;
     }
 
-    buflen = n + 2 + rsa_server.len;
+    buflen = n + 2 + rsa_enclave.len;
     buf2[0] = (unsigned char)(buflen >> 8);
     buf2[1] = (unsigned char)(buflen);
 
@@ -320,50 +383,32 @@ int process_dhm(egate_t *g, kvenclave_dhm_t *dhm_t)
     dhm_t->dhmlen = dhm->len;
 
     client_dhm->dhm_n = n;
-    client_dhm->stage = CLIENT_GET_DHM;
+    client_dhm->stage = CLIENT_GET_DHM_PUBKEY;
     goto exit1;
 
 get_client_dhm_params:
     dhm = client_dhm->dhm;
     ctr_drbg = client_dhm->ctr_drbg;
 
-    copyin(buf, dhm_t->buf1, dhm->len);
-    dhm = client_dhm->dhm;
-    n = client_dhm->dhm_n;
-    ctr_drbg = client_dhm->ctr_drbg;
-
-    // get the client value g^b mod p
-    if( ( ret = dhm_read_public( dhm, buf, dhm->len ) ) != 0 ) {
-        eg_printf( g, " failed\n  ! dhm_read_public returned %d\n\n", ret );
-        goto exit;
-    }
-
-    if( ( ret = dhm_calc_secret( dhm, buf, &n, ctr_drbg_random,
-                    &ctr_drbg ) ) != 0 ) {
-        eg_printf( g, " failed\n  ! mbedtls_dhm_calc_secret returned %d\n\n", ret );
-        goto exit;
-    }
-
-    // copy the key to the client buffer
-    memcpy(client_dhm->key, buf, KVSTORE_AESKEY_LEN);
-
-    client_dhm->stage = CLIENT_GET_PUBKEY;
-
-
-    goto exit1;
-
-
-get_client_public_key:
-    dhm = client_dhm->dhm;
-    ctr_drbg = client_dhm->ctr_drbg;
-
+    // copy all data from E-
     copyin(buf, dhm_t->buf1, KVSERVER_BUF_SIZE);
     copyin(buf2, dhm_t->buf2, 2);
+    copyin(pubkey, dhm_t->pubkey, KVSERVER_PUBKEY_SIZE);
+    pubkeysize = dhm_t->pubkeysize;
+
+    dhm = client_dhm->dhm;
+    dhmlen = client_dhm->dhm_n;
+    ctr_drbg = client_dhm->ctr_drbg;
 
     // make sure the data has not been corrupted along the way
     buflen = (buf2[0] << 8) | buf2[1];
-    n = (buf[0] << 8) | buf[1];
-    c_keylen = buflen - n - 2;
+    rsalen = (buf[0] << 8) | buf[1];
+
+    if (pubkeysize > KVSERVER_PUBKEY_SIZE) {
+        eg_printf(g, "FAILED\n ! Incorrect parameters passed for public keys");
+        ret = 1;
+        goto exit;
+    }
 
     if (buflen < 1 || buflen > KVSERVER_BUF_SIZE) {
         ret = 1;
@@ -371,32 +416,53 @@ get_client_public_key:
         goto exit;
     }
 
-    p = buf + 2;
-
-    // parse the client's public key
-    pk_init(&client_pubkey);
-    if ( (ret = pk_parse_public_key(&client_pubkey, p, c_keylen)) != 0 ) {
-        printf(" FAILED\n ! parsing client public value (%zu, %04x)\n\n",
-                c_keylen, ret);
+    /* extract the public key */
+    client_rsakey = __get_client_rsakey(g, pubkey, pubkeysize);
+    if (client_rsakey == NULL) {
+        eg_printf(g, " parsing public key file FAILED\n");
+        ret = 1;
         goto exit;
     }
-    rsa_init(&client_rsakey, RSA_PKCS_V15, POLARSSL_MD_SHA256);
-    rsa_copy(&client_rsakey, pk_rsa(client_pubkey));
 
-    sha256(p, c_keylen, hash, 0);
+    /* the size of the client name */
+    n = buflen - rsalen - dhmlen - 2;
 
-    // checking the signature passes
-    if ( ( ret = rsa_pkcs1_verify(&client_rsakey, NULL, NULL, RSA_PUBLIC,
-                    POLARSSL_MD_SHA256, 0, hash, p + c_keylen) ) != 0 ) {
+    p = buf + 2;
+
+    /* compute hash and verify signature */
+    sha256(p, dhmlen + n, hash, 0);
+
+    if ( ( ret = rsa_pkcs1_verify(client_rsakey, NULL, NULL, RSA_PUBLIC,
+                    POLARSSL_MD_SHA256, 0, hash, p + dhmlen + n) ) != 0 ) {
         printf(" FAILED\n ! rsa_pkcs1_verify (%04x)\n\n", ret);
         goto exit;
     }
 
+
+    /* if the signature passes, let's derive the secret */
+
+    // get the client value g^b mod p
+    if( ( ret = dhm_read_public( dhm, p, dhm->len ) ) != 0 ) {
+        eg_printf( g, " failed\n  ! dhm_read_public returned %d\n\n", ret );
+        goto exit;
+    }
+
+    if( ( ret = dhm_calc_secret( dhm, p, &dhmlen, ctr_drbg_random,
+                    &ctr_drbg ) ) != 0 ) {
+        eg_printf( g, " failed\n  ! mbedtls_dhm_calc_secret returned %d\n\n", ret );
+        goto exit;
+    }
+
+    /* copy the key to the client buffer */
+    memcpy(client_dhm->key, p, KVSTORE_AESKEY_LEN);
+
     // if it passes, we're done
     client_ctx_t * client_ctx = (client_ctx_t *)malloc(sizeof(client_ctx_t));
     memcpy(client_ctx->enckey, client_dhm->key, KVSTORE_AESKEY_LEN);
-    // TODO change this to a randomly generated value
-    sha256(client_ctx->enckey, KVSTORE_AESKEY_LEN, client_ctx->iv, 0);
+
+    enclave_entropy_init(&entropy);
+    entropy_func(&entropy, client_ctx->iv, KVSTORE_AESIV_LEN);
+
     // TODO change this to a generated ID
     client_ctx->sess_id = dhm_t->cfd;
 

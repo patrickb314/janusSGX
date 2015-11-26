@@ -23,7 +23,7 @@
 
 #define WAIT_TIME 2
 
-int kvstore_dhm(int, aes_context *, unsigned char *, int);
+int kvstore_dhm(int, aes_context *, char *, unsigned char *, int);
 
 int pfd = -1;
 
@@ -84,18 +84,26 @@ static int send_data(int *cfd, kvstore_cmd_t * cmd, size_t size)
     return 0;
 }
 
-void str_trim(char * c)
+void str_trim(char ** pc)
 {
+    char * c = *pc;
+    // remove all white space at the front
+    while (*c == ' ') {
+        ++c;
+    }
+
     char *p_c = c + strlen(c) - 1;
 
     if (p_c < c) {
         return;
     }
 
-    while (*p_c == '\0' || *p_c == '\n' || *p_c == '\t') {
+    while (*p_c == ' ' || *p_c == '\n' || *p_c == '\t') {
         *p_c = '\0';
         p_c--;
     }
+    // update the string pointer
+    *pc = c;
 }
 
 static char * get_type_str(kvstore_type_t type)
@@ -126,7 +134,7 @@ static kvstore_type_t get_type(char * op)
         return KVSTORE_GET;
     } else if (strcmp("set", op) == 0) {
         return KVSTORE_SET;
-    } else if (strcmp("exit", op) == 0) {
+    } else if (strcmp("exit", op) == 0 || strcmp("quit", op) == 0) {
         return KVSTORE_EXIT;
     }
 
@@ -138,8 +146,9 @@ void send_commands()
     kvstore_cmd_t cmd;
     kvstore_ack_t ack;
     char buf[100];
-    const char *delims = " \0";
+    const char *delims = " ";
     char * parsed;
+    int len;
 
     /* FIXME for now. Improve this by using a more
      * appropriate parser */
@@ -152,11 +161,18 @@ void send_commands()
     do {
         memset(buf, 0, sizeof(buf));
 
-        printf("\n> ");
+        printf("\n(kv) ");
         fflush(stdout);
         fgets(buf, sizeof(buf), stdin);
 
         parsed = strdup(buf);
+        str_trim(&parsed);
+        len = strlen(parsed);
+
+        if (len == 0) {
+            continue;
+        }
+
         op = strtok(parsed, delims);
 
         // get the op
@@ -184,9 +200,6 @@ void send_commands()
         } else {
             kv_val = strtok(NULL, "\0");
         }
-
-        str_trim(kv_key);
-        str_trim(kv_val);
 
         // set the code and message then encrypt
         memset(&cmd, 0, sizeof(cmd));
@@ -234,25 +247,32 @@ exit:
     printf("error\n");
 }
 
-int main() {
+int main(int argc, char ** argv) {
+    entropy_context entropy;
     // initialize our AES context
     aes_init(&aes);
+    entropy_init(&entropy);
 
     //int ret;
+
+    if (argc != 2) {
+        printf("usage: %s client\n", argv[0]);
+        return 0;
+    }
 
     if(__init()) {
         printf("  * Exiting \n");
         goto exit;
     }
 
-    if(kvstore_dhm(pfd, &aes, enckey, KVSTORE_AESKEY_LEN)) {
+    if(kvstore_dhm(pfd, &aes, argv[1], enckey, KVSTORE_AESKEY_LEN)) {
         printf("\n  ! DHM failed... Exiting");
         goto exit;
     }
 
     // to derive the IV, we just hash the key
     // assumed safe, the key IV is updated on each encryption
-    sha256(enckey, KVSTORE_AESIV_LEN, iv, 0);
+    entropy_func(&entropy, iv, KVSTORE_AESIV_LEN);
 
     send_commands();
 exit:

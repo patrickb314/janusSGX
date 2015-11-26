@@ -84,7 +84,7 @@ static inline int send_resp(int *cfd, kvstore_cmd_t *cmd)
     return respond(cfd, (unsigned char *)cmd, sizeof(kvstore_cmd_t));
 }
 
-void print_byte(char * pre, void * ptr, int size)
+void print_bytes(char * pre, void * ptr, int size)
 {
     int i = 0;
     printf("%s", pre);
@@ -123,9 +123,9 @@ int listen_command(int *cfd)
             goto exit;
         }
 
-        print_byte("IV: ", cmd.iv, 5);
-        print_byte(" KEY: ", cmd.payload.key, 5);
-        print_byte(" VAL: ", cmd.payload.val, 5);
+        print_bytes("IV: ", cmd.iv, 5);
+        print_bytes(" KEY: ", cmd.payload.key, 5);
+        print_bytes(" VAL: ", cmd.payload.val, 5);
         fflush(stdout);
         // TODO this is suppose to be set by the client
         // using the socket number for now
@@ -158,10 +158,12 @@ exit:
  */
 static int __dhm(int *cfd)
 {
-    int ret, buflen, dhmlen;
-    unsigned char buf1[KVSERVER_BUF_SIZE];
-    unsigned char buf2[2];
+    int ret, buflen, dhmlen, filesize, len;
+    unsigned char buf1[KVSERVER_BUF_SIZE], buf2[2], pubkey[KVSERVER_BUF_SIZE]={0};
+    char * client_name;
     kvenclave_dhm_t dhm_t;
+    char inputfile[50];
+    FILE * f;
 
     memset(&dhm_t, 0, sizeof(dhm_t));
     dhm_t.cfd = *cfd;
@@ -197,25 +199,11 @@ static int __dhm(int *cfd)
         goto exit;
     }
 
-    printf("\n . Waiting for client's public value ");
-    if ( ( ret = net_recv( cfd, buf1, dhmlen ) ) != dhmlen) {
-        printf(" failed\n ! net_recv (%d, %d) \n\n", ret, dhmlen);
-        goto exit;
-    }
-
-    printf("\n . Deriving shared secret");
-    enclave_main(e.tcs, exception_handler, &e, KVENCLAVE_DHM_OP, &dhm_t);
-    if (dhm_t.status) {
-        printf("! enclave_main returned an error \n\n");
-        ret = dhm_t.status;
-        goto exit;
-    }
-
-    // stage 3
-    printf("\n . Getting client's public key parameters");
+    /* stage 2 */
+    printf("\n . Getting client's DHM and public key parameters");
     fflush(stdout);
     if ( ( ret = net_recv( cfd, buf2, 2 ) ) != 2) {
-        printf(" failed\n ! net_recv (%d, %d) \n\n", ret, dhmlen);
+        printf(" failed\n ! net_recv (ret=%d, dhmlen=%d) \n\n", ret, dhmlen);
         goto exit;
     }
 
@@ -233,13 +221,41 @@ static int __dhm(int *cfd)
     }
 
     if ( ( ret = net_recv( cfd, buf1, buflen ) ) != buflen) {
-        printf(" failed\n ! net_recv (%d, %d) \n\n", ret, buflen);
+        printf(" FAILED\n ! net_recv (%d, %d) \n\n", ret, buflen);
         goto exit;
     }
 
+    client_name = (char *)(buf1 + 2 + dhmlen);
+    len = buflen - ((buf1[0] << 8) | buf1[1]) - dhmlen - 2 - 1;
+    if (len != strlen(client_name)) {
+        printf(" FAILED\n ! corrupted buffer (len=%zu)", strlen(client_name));
+        goto exit;
+    }
+
+    printf("\n . Connecting [%s]...", client_name);
+    snprintf(inputfile, 50, "keys/%s_pub.sig.txt", client_name);
+
+    f = fopen(inputfile, "rb");
+    if (f == NULL) {
+        printf(" FAILED\n ! Public file (%s) not found", inputfile);
+        ret = 1;
+        goto exit;
+    }
+
+    // read the client's public key
+    filesize = fread(pubkey, sizeof(char), KVSERVER_PUBKEY_SIZE, f);
+    if (filesize == 0) {
+        printf(" FAILED\n ! public file not found");
+        ret = 1;
+        goto exit;
+    }
+
+    dhm_t.pubkey = pubkey;
+    dhm_t.pubkeysize = filesize;
+
     enclave_main(e.tcs, exception_handler, &e, KVENCLAVE_DHM_OP, &dhm_t);
     if (dhm_t.status) {
-        printf("! enclave_main returned an error \n\n");
+        printf(" FAILED\n ! enclave_main returned an error \n\n");
         ret = dhm_t.status;
         goto exit;
     }
