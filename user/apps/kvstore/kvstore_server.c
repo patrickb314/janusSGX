@@ -11,6 +11,8 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/mman.h>
+#include <pthread.h>
 
 #include "polarssl/net.h"
 #include "polarssl/aes.h"
@@ -21,6 +23,9 @@
 #include "polarssl/entropy.h"
 #include "polarssl/ctr_drbg.h"
 
+#include "libut/include/uthash.h"
+#include "libut/include/utlist.h"
+
 #include "kvserver.h"
 #include "kvstore.h"
 
@@ -29,82 +34,52 @@
 #define SERVER_PORT 11988
 
 ENCCALL3(enclave_main, egate_t *, kvenclave_ops_t, void *)
+void * handler(void * client_fd);
+void handle_file(unsigned char * name, size_t id, int load);
 
-egate_t e;
+egate_t egate;
 
+typedef struct {
+    int id;
+    unsigned char fname[KVSERVER_HASH_SIZE + 1];
+    UT_hash_handle hh;
+} client_files_t;
+
+client_files_t * clients = NULL;
 
 void usage(char *progname)
 {
 	fprintf(stderr, "usage: %s test.sgx [test.conf]\n", progname);
 }
 
-
-int setup_connection(int *lfd, int *cfd) {
-    int ret;
-
-    printf( "\n  . Waiting for a remote connection" );
-    fflush( stdout );
-
-    if( ( ret = net_bind( lfd, NULL, SERVER_PORT ) ) != 0 )
-    {
-        printf( " failed\n  ! net_bind returned %d\n\n", ret );
-        goto exit;
-    }
-
-    if( ( ret = net_accept( *lfd, cfd, NULL ) ) != 0 )
-    {
-        printf( " failed\n  ! net_accept returned %d\n\n", ret );
-        goto exit;
-    }
-
-exit:
-    return ret;
-}
-
-static int respond(int *cfd, unsigned char * cmd, size_t size)
-{
-    int ret;
-    printf("      <-- Sending response to client... ");
-    if ( ( ret = net_send(cfd, cmd, size) ) != size ) {
-        printf("FAILED net_send (%d)", ret);
-        return -1;
-    }
-    printf("OK");
-
-    return 0;
-}
-
-static inline int send_ack(int *cfd, kvstore_ack_t *ack)
-{
-    return respond(cfd, (unsigned char *)ack, sizeof(kvstore_ack_t));
-}
-
-static inline int send_resp(int *cfd, kvstore_cmd_t *cmd)
-{
-    return respond(cfd, (unsigned char *)cmd, sizeof(kvstore_cmd_t));
-}
-
-void print_bytes(char * pre, void * ptr, int size)
-{
-    int i = 0;
-    printf("%s", pre);
-    for (; i < size; i++) {
-        printf("%02x", *((unsigned char *)ptr + i));
-    }
-}
-
 int listen_command(int *cfd)
 {
-    int ret;
+    int ret, id;
     kvstore_cmd_t cmd;
     kvstore_ack_t ack;
+
+    client_files_t * ctx = NULL;
+
     printf("\n  .  Listening for commands");
     fflush(stdout);
 
     while(1) {
         memset(&cmd, 0, sizeof(cmd));
         ret = net_recv(cfd, (unsigned char *)&cmd, sizeof(cmd));
+
         if (ret != sizeof(cmd)) {
+            id = *cfd;
+            /* save the client data */
+            HASH_FIND_INT(clients, &id, ctx);
+            printf("\n . Client (%d) issues exit commmand", id);
+
+            if (ctx == NULL) {
+                printf("\n*** client file not found... bye ***");
+                ret = 0;
+                goto exit;
+            }
+
+            handle_file(ctx->fname, ctx->id, 0);
             printf ("\n*** net_recv(%d)... shutdown ***", ret);
             goto exit;
         }
@@ -127,13 +102,14 @@ int listen_command(int *cfd)
         print_bytes(" KEY: ", cmd.payload.key, 5);
         print_bytes(" VAL: ", cmd.payload.val, 5);
         fflush(stdout);
+
         // TODO this is suppose to be set by the client
         // using the socket number for now
         cmd.sess_id = (unsigned char)(*cfd);
 
         // now let's send a command to the enclave
         // TODO read return value to set ACK struct
-        enclave_main(e.tcs, exception_handler, &e, KVENCLAVE_STORE_OP, &cmd);
+        enclave_main(egate.tcs, exception_handler, &egate, KVENCLAVE_STORE_OP, &cmd);
         printf(" OK \n");
         //printf("Return from enclave_main %d\n", eret);
 
@@ -150,6 +126,7 @@ int listen_command(int *cfd)
         }
     }
 exit:
+    /* memory map the region and write to file */
     return ret;
 }
 
@@ -170,7 +147,7 @@ static int __dhm(int *cfd)
     dhm_t.buf1 = buf1;
     dhm_t.buf2 = buf2;
 
-    enclave_main(e.tcs, exception_handler, &e, KVENCLAVE_DHM_OP, &dhm_t);
+    enclave_main(egate.tcs, exception_handler, &egate, KVENCLAVE_DHM_OP, &dhm_t);
     if (dhm_t.status) {
         printf("! enclave_main returned an error \n\n");
         ret = dhm_t.status;
@@ -253,7 +230,7 @@ static int __dhm(int *cfd)
     dhm_t.pubkey = pubkey;
     dhm_t.pubkeysize = filesize;
 
-    enclave_main(e.tcs, exception_handler, &e, KVENCLAVE_DHM_OP, &dhm_t);
+    enclave_main(egate.tcs, exception_handler, &egate, KVENCLAVE_DHM_OP, &dhm_t);
     if (dhm_t.status) {
         printf(" FAILED\n ! enclave_main returned an error \n\n");
         ret = dhm_t.status;
@@ -268,9 +245,87 @@ static int __dhm(int *cfd)
         printf(" FAILED\n ! dummy net_recv returned%d\n\n", ret);
         goto exit;
     }
+
+    /* instantiate the client */
+    client_files_t * cf = malloc(sizeof(client_files_t));
+    if (cf == NULL) {
+        printf(" FAILED\n ! No memory for client context");
+    }
+
+    memcpy(cf->fname, client_name, strlen(client_name));
+    cf->id = *cfd;
+    HASH_ADD_INT(clients, id, cf);
+    // load the file into the enclave
+    handle_file(cf->fname, cf->id, 1);
     ret = 0;
 exit:
     return ret;
+}
+
+/**
+ * Loads/saves the users file
+ * @param name is the user's name
+ *
+ */
+void handle_file(unsigned char * client_name, size_t id, int load) {
+    FILE * cfile;
+    void * cfile_data;
+    kvenclave_fileop_t fileop;
+    char filename[50];
+
+    snprintf(filename, 50, "store/%s", client_name);
+
+    if (load) {
+        cfile = fopen(filename, "r");
+    } else {
+        cfile = fopen(filename, "w+");
+    }
+
+    if (cfile == NULL) {
+        printf("\n*** FILE could not be opened ***");
+        goto exit;
+    }
+
+    cfile_data = malloc(MAX_CLIENT_FILE_SIZE);
+    if (cfile_data == NULL) {
+        printf("\n*** Could not allocate memory ***");
+        goto exit;
+    }
+
+    fileop.load = load;
+    fileop.sess_id = id;
+    fileop.data = cfile_data;
+
+    if (load) {
+        fileop.size = fread(fileop.data, 1, MAX_CLIENT_FILE_SIZE, cfile);
+
+        enclave_main(egate.tcs, exception_handler, &egate,
+                KVENCLAVE_FILE_OP, &fileop);
+    } else {
+        enclave_main(egate.tcs, exception_handler, &egate,
+                KVENCLAVE_FILE_OP, &fileop);
+
+        fwrite(fileop.data, 1, MAX_CLIENT_FILE_SIZE, cfile);
+    }
+
+exit:
+    fflush(stdout);
+}
+
+void * handler(void *client_fd) {
+    int cfd = *((int *)client_fd);
+
+    fprintf(stdout, "\n . Setting up DHM in enclave (%d)", cfd);
+
+    if(__dhm(&cfd)) {
+        printf("FAILURE: DHM with client (%d) failed", cfd);
+        goto exit;
+    }
+
+    fflush(stdout);
+    listen_command(&cfd);
+exit:
+    return (void *)1;
 }
 
 int main(int argc, char **argv)
@@ -284,7 +339,7 @@ int main(int argc, char **argv)
 
     int listen_fd;
     int client_fd;
-    //int ret;
+    int ret;
 
 	/* Parse options */
 	if (argc < 2) {
@@ -324,27 +379,43 @@ int main(int argc, char **argv)
 	pchan[1] = channels + 1;
 	echan_init(pchan[1]);
 
-	egate_user_init(&e, testtcs, pchan);
+	egate_user_init(&egate, testtcs, pchan);
 	fprintf(stdout, "Start egate-proxy for file %s \n", tmpname);
 	fflush(stdout);
 
-	// enclave_main(e.tcs, exception_handler, &e);
 
-    if (setup_connection(&listen_fd, &client_fd)) {
+    // bind the connection
+    if ( ( ret = net_bind( &listen_fd, NULL, SERVER_PORT ) ) != 0 ) {
+        printf( " failed\n  ! net_bind returned %d\n\n", ret );
         goto exit;
     }
 
+    printf( "\n  . Waiting for a remote connections" );
+    fflush( stdout );
 
-    fprintf(stdout, "\n . Setting up DHM in enclave (%d)", client_fd);
-    fflush(stdout);
 
+    {
+        ret = net_accept( listen_fd, &client_fd, NULL );
 
-    if(__dhm(&client_fd)) {
-        printf("\n FAILURE: DHM with client failed");
-        goto exit;
+        if (ret) {
+            printf( " failed\n ! net_accept returned %d\n\n", ret );
+            goto exit;
+        }
+
+        printf("\n ^ New connection");
+
+        handler(&client_fd);
+        /*
+        pthread_t thread;
+
+        if (pthread_create(&thread, NULL, handler, &client_fd) != 0) {
+            perror("Could not create thread");
+            return 1;
+        }
+
+        //pthread_join(thread, NULL);
+        */
     }
-
-    listen_command(&client_fd);
 
 exit:
     printf("\n");

@@ -1,28 +1,6 @@
-#include <sgx-lib.h>
-#include <egate.h>
-
-#include <polarssl/net.h>
-#include <polarssl/aes.h>
-#include <polarssl/dhm.h>
-#include <polarssl/pk.h>
-#include <polarssl/rsa.h>
-#include <polarssl/sha256.h>
-#include <polarssl/entropy.h>
-#include <polarssl/ctr_drbg.h>
-
-#include "libut/include/uthash.h"
-#include "libut/include/utlist.h"
-
-#include "kvserver.h"
-#include "kvstore.h"
-
-
-#define SERVER_PORT 11988
-
-#define MAX_DHM_CLIENTS 10
+#include "kvenclave.h"
 
 /* the private key of the server, this is expected to be encrypted */
-/* TODO use password instead, load private key from encrypted file */
 const unsigned char private_key[] = "-----BEGIN RSA PRIVATE KEY-----\r\n"
 "MIICWgIBAAKBgHbkwOOsQBoTawUE3lAUQukdH2YZm9t56gBqpr4DpFpY2ZndNk6T\r\n"
 "uEZ8mgeGxwrDkGJdL405bl4CoYN5BawFbL7hUPXu0h0vqrJUmD5vueChgOy/kch0\r\n"
@@ -65,87 +43,66 @@ unsigned char rsa_bool = 0;
 
 int client_dhm_count = 0;
 
-/* internal data structure for managing the client's current context */
-typedef enum {
-    CLIENT_SEND_DHM         = 0,
-    CLIENT_GET_DHM_PUBKEY   = 1
-} client_dhm_stage_t;
-
-typedef struct {
-    int cid;
-    int index; // used to free from array
-    client_dhm_stage_t stage;
-    dhm_context * dhm;
-    unsigned char key[KVSTORE_AESKEY_LEN];
-    int dhm_n; // size of the dhm output
-    ctr_drbg_context * ctr_drbg;
-} client_dhm_t;
-
 client_dhm_t * client_dhm_context[MAX_DHM_CLIENTS] = {NULL};
-
-/* the key value data */
-typedef struct {
-    char key[KVSTORE_KEY_LEN];
-    char val[KVSTORE_VAL_LEN];
-    UT_hash_handle hh;
-} kv_t;
-
-kv_t * kvdata = NULL;
-
-/* the login context of the client */
-typedef struct {
-    int sess_id;
-    unsigned char enckey[KVSTORE_AESKEY_LEN]; // the encryption key
-    unsigned char iv[KVSTORE_AESIV_LEN];
-    aes_context * aes;
-    /* this is to use in a doubly linked list */
-    UT_hash_handle hh;
-} client_ctx_t;
 
 client_ctx_t * client_ctx_head = NULL; /* doubly linked-list of contexts */
 
-static int __init_rsa(egate_t *g) {
-    if (rsa_bool) {
-        return 0;
+int process_fileop(egate_t * g, kvenclave_fileop_t * op)
+{
+    kv_t * parsed_data;
+    file_metadata_t * saved_data;
+    client_ctx_t * ctx;
+    void * dummy_ptr;
+
+    int sess_id = op->sess_id;
+    uint32_t size = op->size;
+    int load = op->load;
+
+    HASH_FIND_INT(client_ctx_head, &sess_id, ctx);
+    if (ctx == NULL) {
+        eg_printf(g, "\n ! client not found");
+        return 1;
     }
 
-    int ret = 1;
+    if (load) {
+        if (size > MAX_CLIENT_FILE_SIZE) {
+            eg_printf(g, "\n ! File size cannot be greater than maximum");
+            return 1;
+        }
 
-    pk_context pk_ctx, pk_ctx1;
-    pk_init(&pk_ctx);
-    pk_init(&pk_ctx1);
+        dummy_ptr = malloc(size);
+        if (dummy_ptr == NULL) {
+            eg_printf(g, "\n ! Not enough memory for file load");
+            return 1;
+        }
+        copyin(dummy_ptr, op->data, size);
 
-    rsa_init(&rsa_enclave, RSA_PKCS_V15, POLARSSL_MD_SHA256);
-    rsa_init(&rsa_pub_dynac, RSA_PKCS_V15, POLARSSL_MD_SHA256);
+        parsed_data = parse_client_file(g, ctx, dummy_ptr);
 
-    // parse the private key
-    if( ( ret = pk_parse_key (&pk_ctx, private_key, sizeof(private_key),
-                    NULL, 0) ) !=0 ) {
-        eg_printf(g, "! FAILED: parsing server private key (%x)\n", ret);
-        goto exit;
+        if (parsed_data == NULL) {
+            eg_printf(g, "\n ! Parsing key-value data failed");
+            return 1;
+        }
+
+        ctx->kvdata = parsed_data;
+    } else {
+        saved_data = save_client_file(g, ctx);
+        if (saved_data == NULL) {
+            eg_printf(g, "\n ! Saving key-value data failed");
+            return 1;
+        }
+        /* copy to memory-mapped non-enclave */
+        copyout(op->data, saved_data->content, saved_data->len);
+
+        free(saved_data);
     }
 
-    if( ( ret = pk_parse_public_key(&pk_ctx1, dynac_pubkey,
-                    sizeof(dynac_pubkey)) ) !=0 ) {
-        eg_printf(g, "! FAILED: parsing dynac private key (%x)\n", ret);
-        goto exit;
-    }
-
-    rsa_copy(&rsa_enclave, pk_rsa(pk_ctx));
-    rsa_copy(&rsa_pub_dynac, pk_rsa(pk_ctx1));
-
-    rsa_bool = 1;
-
-    pk_free(&pk_ctx);
-    pk_free(&pk_ctx1);
-
-exit:
-    return ret;
+    return 0;
 }
 
 int process_kvstore(egate_t * g, kvstore_cmd_t * cmd)
 {
-    kv_t *data;
+    kv_t * data;
     char *err, *key, *val;
     client_ctx_t * ctx;
     int sess_id = cmd->sess_id;
@@ -174,12 +131,12 @@ int process_kvstore(egate_t * g, kvstore_cmd_t * cmd)
         data = (kv_t *) malloc(sizeof(kv_t));
         memcpy(data->key, key, KVSTORE_KEY_LEN);
         memcpy(data->val, val, KVSTORE_VAL_LEN);
-        HASH_ADD_STR(kvdata, key, data);
+        HASH_ADD_STR(ctx->kvdata, key, data);
         break;
 
     case KVSTORE_GET:
-        HASH_FIND_STR(kvdata, key, data);
-        if (kvdata == NULL) {
+        HASH_FIND_STR(ctx->kvdata, key, data);
+        if (data == NULL) {
             // let's just exit, nothing to copy
             // TODO come up with a sanitary value
             eg_printf(g, "key: %s not found", key);
@@ -210,6 +167,46 @@ int process_kvstore(egate_t * g, kvstore_cmd_t * cmd)
 err:
     eg_printf(g, "ERROR: %s\n", err);
     return 1;
+}
+
+static int __init_rsa(egate_t *g)
+{
+    if (rsa_bool) {
+        return 0;
+    }
+
+    int ret = 1;
+
+    pk_context pk_ctx, pk_ctx1;
+    pk_init(&pk_ctx);
+    pk_init(&pk_ctx1);
+
+    rsa_init(&rsa_enclave, RSA_PKCS_V15, POLARSSL_MD_SHA256);
+    rsa_init(&rsa_pub_dynac, RSA_PKCS_V15, POLARSSL_MD_SHA256);
+
+    // parse the private key
+    if ( ( ret = pk_parse_key (&pk_ctx, private_key, sizeof(private_key),
+                    NULL, 0) ) !=0 ) {
+        eg_printf(g, "! FAILED: parsing server private key (%x)\n", ret);
+        goto exit;
+    }
+
+    if ( ( ret = pk_parse_public_key(&pk_ctx1, dynac_pubkey,
+                    sizeof(dynac_pubkey)) ) !=0 ) {
+        eg_printf(g, "! FAILED: parsing dynac private key (%x)\n", ret);
+        goto exit;
+    }
+
+    rsa_copy(&rsa_enclave, pk_rsa(pk_ctx));
+    rsa_copy(&rsa_pub_dynac, pk_rsa(pk_ctx1));
+
+    rsa_bool = 1;
+
+    pk_free(&pk_ctx);
+    pk_free(&pk_ctx1);
+
+exit:
+    return ret;
 }
 
 static client_dhm_t * get_client_dhm(int client_id)
@@ -317,23 +314,21 @@ int process_dhm(egate_t *g, kvenclave_dhm_t *dhm_t)
     /* seed the rng */
     enclave_entropy_init(&entropy);
 
-    switch (client_dhm->stage) {
-    case CLIENT_SEND_DHM:
-        break;
-    case CLIENT_GET_DHM_PUBKEY:
+    if (client_dhm->stage == CLIENT_GET_DHM_PUBKEY) {
         goto get_client_dhm_params;
     }
 
     /* for a new client we allocate our new data structures */
+    __init_rsa(g);
+
     dhm = malloc(sizeof(dhm_context));
     ctr_drbg = malloc(sizeof(ctr_drbg_context));
 
     client_dhm->dhm = dhm;
     client_dhm->ctr_drbg = ctr_drbg;
 
+    /* initialize DHM and random number generators */
     dhm_init( dhm );
-    // aes_init( &aes );
-    __init_rsa(g);
 
     if ( ( ret = ctr_drbg_init( ctr_drbg, entropy_func, &entropy,
                                (const unsigned char *) pers,
@@ -349,15 +344,11 @@ int process_dhm(egate_t *g, kvenclave_dhm_t *dhm_t)
         goto exit;
     }
 
-    eg_printf(g, "\n  . Beginning Diffie-Hellman");
-
     if ( ( ret = dhm_make_params(dhm, (int) mpi_size(&dhm->P), buf, &n,
                     ctr_drbg_random, ctr_drbg) ) != 0 ) {
         eg_printf(g, " FAILED ! dhm_make_params (%d)\n\n", ret);
         goto exit;
     }
-
-    eg_printf(g, "\n  . Hashing and signing DH (%d bytes)", (int) n);
 
     // hash the g^a
     memset(hash, 0, KVSERVER_HASH_SIZE);
@@ -376,6 +367,11 @@ int process_dhm(egate_t *g, kvenclave_dhm_t *dhm_t)
     buflen = n + 2 + rsa_enclave.len;
     buf2[0] = (unsigned char)(buflen >> 8);
     buf2[1] = (unsigned char)(buflen);
+
+    /*
+     * Here's what we send to the client
+     * total size (2 bytes) | dhm_context (n) | rsa_size (2) | rsa_signature
+     */
 
     // copy the buffer over to E-
     copyout(dhm_t->buf1, buf, KVSERVER_BUF_SIZE);
@@ -453,23 +449,22 @@ get_client_dhm_params:
         goto exit;
     }
 
-    /* copy the key to the client buffer */
-    memcpy(client_dhm->key, p, KVSTORE_AESKEY_LEN);
-
     // if it passes, we're done
     client_ctx_t * client_ctx = (client_ctx_t *)malloc(sizeof(client_ctx_t));
-    memcpy(client_ctx->enckey, client_dhm->key, KVSTORE_AESKEY_LEN);
+    memcpy(client_ctx->enckey, p, KVSTORE_AESKEY_LEN);
 
-    enclave_entropy_init(&entropy);
+    /* generate the IV */
     entropy_func(&entropy, client_ctx->iv, KVSTORE_AESIV_LEN);
 
     // TODO change this to a generated ID
     client_ctx->sess_id = dhm_t->cfd;
+    client_ctx->kvdata = NULL;
 
+    /* compute the hash of the client's public key to allow memory mapped
+     * file to be opened by E- */
+    sha256(pubkey, pubkeysize, client_ctx->pubkeyhash, 0);
     // set the AES key
     client_ctx->aes = (aes_context *)malloc(sizeof(aes_context));
-    aes_setkey_enc(client_ctx->aes, client_ctx->enckey, KVSTORE_AESKEY_BITS);
-    aes_setkey_dec(client_ctx->aes, client_ctx->enckey, KVSTORE_AESKEY_BITS);
 
     // if we get here, we're good to release the dhm context
     client_dhm_context[client_dhm->index] = NULL;
@@ -501,6 +496,9 @@ void enclave_main(egate_t *g, kvenclave_ops_t op, void *data)
     case KVENCLAVE_STORE_OP:
         ret = process_kvstore(g, (kvstore_cmd_t *)data);
         break;
+
+    case KVENCLAVE_FILE_OP:
+        ret = process_fileop(g, (kvenclave_fileop_t *)data);
 
     default:
         eg_printf(g, "Invalid Op... byte\n");
