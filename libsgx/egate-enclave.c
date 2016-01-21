@@ -183,6 +183,73 @@ int eg_printf(egate_t *g, char *fmt, ...)
 	return eg_console_write(g, buf, len + 1);
 }
 
+/* 
+ * copied from sgx-utils.c 
+ *
+ * XXX could be more efficient in choosing snprintf size
+ */
+#define HEXDUMP_STR_LEN 128
+int eg_hexdump(egate_t *g, void *addr, int len)
+{
+    int i, x, ret;
+    int lx = 0;
+    int total_len = 0;
+    char fd[HEXDUMP_STR_LEN];
+    char buff[17];
+    unsigned char *pc = (unsigned char*)addr;
+
+    // Process every byte in the data.
+    for (x = 0; x < len; x+=16) {
+        for (i = 0; i<16 && (i+x)<len; i++) {
+            // Multiple of 16 means new line (with line offset).
+
+            if ((i % 16) == 0) {
+                // Just don't print ASCII for the zeroth line.
+                if (i != 0) {
+                    //ret = sprintf(fd + lx, "  %s\n");
+                    //lx += ret;
+                }
+
+                // Output the offset.
+                ret = snprintf(fd + lx, HEXDUMP_STR_LEN, "%04x ", i+x);
+                lx += ret;
+
+            } else if ((i % 8) == 0) {
+                ret = snprintf(fd + lx, HEXDUMP_STR_LEN, " ");
+                lx += ret;
+            }
+
+            // Now the hex code for the specific character.
+            ret = snprintf(fd + lx, HEXDUMP_STR_LEN, " %02x", pc[i]);
+            lx += ret;
+
+            // And store a printable ASCII character for later.
+            if ((pc[i] < 0x20) || (pc[i] > 0x7e))
+                buff[i % 16] = '.';
+            else
+                buff[i % 16] = pc[i];
+            buff[(i % 16) + 1] = '\0';
+        }
+
+        // Pad out last line if not exactly 16 characters.
+        while ((i % 16) != 0) {
+            ret = snprintf(fd + lx, HEXDUMP_STR_LEN, "   ");
+            lx += ret;
+            i++;
+        }
+
+        // And print the final ASCII bit.
+        snprintf(fd + lx, HEXDUMP_STR_LEN, "  %s\n", buff);
+
+        // send it to the buffer
+        total_len += eg_console_write(g, fd, HEXDUMP_STR_LEN);
+        lx = 0;
+        pc += 16;
+    }
+
+    return total_len;
+}
+
 void eg_exit(egate_t *g, int val) 
 {
 	if (g) {

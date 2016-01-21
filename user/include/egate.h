@@ -103,6 +103,7 @@ int egate_enclave_enqueue(egate_t *, ecmd_t *, void *buf, size_t len);
 int egate_enclave_cmd(egate_t *, ecmd_t *, void *buf, size_t len, int *done);
 
 int eg_printf(egate_t *, char *, ...);
+int eg_hexdump(egate_t*, void *, int );
 void __attribute__((noreturn)) eg_exit(egate_t *, int);
 
 int eg_request_quote(egate_t *, unsigned char nonce[64], report_t *, unsigned char *);
